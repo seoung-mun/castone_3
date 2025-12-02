@@ -10,9 +10,9 @@ import googlemaps
 load_dotenv()
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-review_faiss = os.path.join(os.path.dirname(current_dir), "review-faiss") 
+review_faiss = os.path.join(os.path.dirname(current_dir), "review_faiss") 
 
-LLM = ChatGoogleGenerativeAI(model='gemini-2.5-flash', temperature=0.2)
+LLM = ChatGoogleGenerativeAI(model='gemini-2.5-flash', temperature=0.0)
 
 GMAPS_API_KEY = os.getenv("GMAPS_API_KEY")
 GMAPS_CLIENT = None

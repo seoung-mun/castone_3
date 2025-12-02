@@ -8,7 +8,7 @@ from datetime import datetime
 
 # PDF 생성을 위한 라이브러리 임포트
 from fpdf import FPDF
-from src.utils import normalize_message_to_str
+from src.tools import normalize_message_to_str
 
 
 
@@ -194,7 +194,10 @@ for msg in st.session_state.messages:
     if isinstance(msg, HumanMessage):
         st.chat_message("user").markdown(msg.content)
     elif isinstance(msg, AIMessage) and msg.content:
-        display_text = re.sub(r"\[(STATE_UPDATE|PLAN_ADD):.*?\]", "", msg.content, flags=re.DOTALL).strip()
+        raw_content = getattr(msg, "content", msg)
+        text = normalize_message_to_str(raw_content)
+    
+        display_text = re.sub(r"\[(STATE_UPDATE|PLAN_ADD):.*?\]", "", text, flags=re.DOTALL).strip()
         if display_text:
             st.chat_message("assistant").markdown(display_text)
 
