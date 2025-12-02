@@ -1,6 +1,6 @@
 # src/graph_flow.py
 
-from typing import TypedDict, Annotated, List, Literal, Dict
+from typing import TypedDict, Annotated, List, Literal, Dict, Any
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
@@ -9,6 +9,35 @@ from src.config import LLM
 from src.tools import AVAILABLE_TOOLS, TOOLS
 import re # 정규표현식 라이브러리 임포트
 import json
+
+def normalize_content_to_str(content: Any) -> str:
+    """LLM 응답 content를 항상 str로 변환."""
+    if content is None:
+        return ""
+
+    # 멀티파트 메시지: [{"type": "text", "text": "..."}, ...] 형태
+    if isinstance(content, list):
+        parts = []
+        for part in content:
+            if isinstance(part, dict):
+                if part.get("type") == "text" and "text" in part:
+                    parts.append(str(part["text"]))
+                else:
+                    parts.append(str(part))
+            else:
+                parts.append(str(part))
+        return "\n".join(parts)
+
+    # dict (structured output, JSON 등)
+    if isinstance(content, dict):
+        try:
+            return json.dumps(content, ensure_ascii=False)
+        except TypeError:
+            return str(content)
+
+    # 이미 str 비슷한 건 그냥 문자열로
+    return str(content)
+
 
 # --- 1. LangGraph: 멀티 에이전트 상태 정의 ---
 class AgentState(TypedDict):
@@ -49,7 +78,9 @@ def create_specialist_agent(system_prompt: str):
         response = chain.invoke({"messages": current_messages})
         
         itinerary = state.get('itinerary', []).copy()
-        content = response.content or ""
+
+        raw_content = getattr(response, "content", "")
+        content = normalize_content_to_str(raw_content)
 
         # SupervisorAgent가 생성한 최종 itinerary JSON을 파싱하여 상태를 업데이트하는 로직
         final_itinerary_match = re.search(r"\[FINAL_ITINERARY_JSON\](.*)\[/FINAL_ITINERARY_JSON\]", content, re.DOTALL)
