@@ -49,7 +49,7 @@ def create_specialist_agent(system_prompt: str):
         response = chain.invoke({"messages": current_messages})
         
         itinerary = state.get('itinerary', []).copy()
-        content = response.content
+        content = response.content or ""
 
         # SupervisorAgent가 생성한 최종 itinerary JSON을 파싱하여 상태를 업데이트하는 로직
         final_itinerary_match = re.search(r"\[FINAL_ITINERARY_JSON\](.*)\[/FINAL_ITINERARY_JSON\]", content, re.DOTALL)
