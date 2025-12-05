@@ -249,47 +249,62 @@ def search_attractions_and_reviews(query: str, destination: str = "", start_loca
     만약 출발지가 있다면, 출발지의 지역 정보를 활용해 목적지의 모호성을 해결합니다.
     """
     print(f"\n--- [DEBUG] search_attractions_and_reviews 호출 ---")
-    
+
     # 1. 초기 타겟 설정
     target_location = destination
-    
+    original_destination = destination  # 🚨 [수정 1] 원본 지명 보존
+
     # [핵심 수정] "서면" -> "부산 서면"으로 만들기 위한 문맥 보정 로직
     if start_location and destination:
         # 1) 출발지의 행정구역을 먼저 파악 (예: 부산역 -> 부산광역시 동구)
         start_lat, start_lng = get_coordinates(start_location)
         if start_lat and start_lng:
             start_admin = get_admin_district_from_coords(start_lat, start_lng)
-            
+
             # 2) 광역 지자체명 추출 (예: "부산광역시 동구" -> "부산광역시")
             if start_admin:
                 start_province = start_admin.split()[0] # 첫 단어만 추출
-                
-                # 3) 목적지가 너무 짧거나 모호하면(2글자 이하), 출발지 광역명을 앞에 붙임
-                # 예: "서면"(2글자) -> "부산광역시 서면" (이렇게 하면 구글이 부산 서면을 찾음)
-                if len(destination) <= 3: # 서면, 남산 등 짧은 지명
-                    print(f"DEBUG: 💡 모호한 지명 보정: '{destination}' + 출발지('{start_province}')")
-                    # 검색어 자체를 "부산광역시 서면"으로 변경
-                    target_location = f"{start_province} {destination}"
+
+                # 🚨 [수정 1] 소지역명 보존 로직
+                # 3글자 이하이고, 출발지와 다른 광역권이 아니면 보정 스킵
+                if len(destination) <= 3:
+                    # "우도", "광안리" 같은 소지역명은 그대로 유지
+                    # (출발지와 같은 광역권일 때만 보정)
+                    dest_lat, dest_lng = get_coordinates(destination)
+                    if dest_lat and dest_lng:
+                        dest_admin = get_admin_district_from_coords(dest_lat, dest_lng)
+                        dest_province = dest_admin.split()[0] if dest_admin else ""
+
+                        # 출발지와 목적지가 같은 광역권이면 보정 스킵
+                        if start_province == dest_province:
+                            print(f"DEBUG: 💡 소지역명 보존: '{destination}' (광역권 일치, 보정 스킵)")
+                            # target_location은 그대로 유지
+                        else:
+                            print(f"DEBUG: 💡 모호한 지명 보정: '{destination}' + 출발지('{start_province}')")
+                            target_location = f"{start_province} {destination}"
+                    else:
+                        print(f"DEBUG: 💡 모호한 지명 보정: '{destination}' + 출발지('{start_province}')")
+                        target_location = f"{start_province} {destination}"
 
     if not target_location and start_location:
          target_location = get_location_admin_area(start_location)
 
     if not target_location:
         target_location = query
-    
+
     print(f"DEBUG: 🎯 최종 좌표 검색어: '{target_location}'")
 
     # 2. [Step 1] Google Maps 기반 행정구역 표준화
     standardized_region = ""
-    
+
     # 보정된 검색어(예: 부산광역시 서면)로 좌표를 따면 -> 부산 서면 좌표가 나옴
     lat, lng = get_coordinates(target_location)
-    
+
     if lat and lng:
         # 좌표 -> 행정구역 변환 (이제 부산진구 부전동 쪽 행정구역이 나올 것임)
         standardized_region = get_admin_district_from_coords(lat, lng) # 아까 만든 스마트 머지 함수 사용
         print(f"DEBUG: 🔄 표준화 변환: '{target_location}' -> '{standardized_region}'")
-    
+
     final_region_filter = standardized_region if standardized_region else target_location
     # 내부 검색 함수 정의
     def run_search(region_filter, use_filter=True):
@@ -325,18 +340,33 @@ def search_attractions_and_reviews(query: str, destination: str = "", start_loca
     # 4. [Step 3] 결과 0건일 때 Fallback (필터 해제 검색)
     if not docs:
         print(f"DEBUG: 🚨 정밀 검색 결과 없음. Fallback(전체 검색) 시도...")
-        
+
         # 필터 없이 검색하되, 쿼리에 지역명을 강력하게 포함시켜야 함
         # 예: 필터 없이 "카페"만 찾으면 안됨 -> "광안리 카페"로 찾아야 함
         docs = run_search(target_location, use_filter=False)
-        
+
         if docs:
-             # Fallback 결과가 엉뚱한 지역(예: 제주도)일 수 있으므로 
-             # 텍스트 내에 원래 지명이 포함되었는지 간단히 체크해주면 좋음 (옵션)
-             filtered_fallback = [d for d in docs if target_location in d.page_content]
+             # 🚨 [수정 2] Fallback 검증 개선
+             # page_content뿐만 아니라 metadata['지역']도 확인
+             filtered_fallback = []
+             for d in docs:
+                 # 원본 지명(예: "우도")이나 표준화된 지역명(예: "제주시") 중 하나라도 포함되면 통과
+                 content_match = (
+                     (original_destination and original_destination in d.page_content) or
+                     target_location in d.page_content
+                 )
+                 metadata_region = str(d.metadata.get('지역', ''))
+                 metadata_match = (
+                     (original_destination and original_destination in metadata_region) or
+                     target_location in metadata_region
+                 )
+
+                 if content_match or metadata_match:
+                     filtered_fallback.append(d)
+
              if filtered_fallback:
                  docs = filtered_fallback
-                 print(f"DEBUG: ✅ Fallback 결과 중 '{target_location}' 관련 문서 {len(docs)}건 확보")
+                 print(f"DEBUG: ✅ Fallback 결과 중 '{original_destination or target_location}' 관련 문서 {len(docs)}건 확보")
              else:
                  print("DEBUG: ⚠️ Fallback 결과가 있지만, 지역명 매칭되는 게 적음.")
 
