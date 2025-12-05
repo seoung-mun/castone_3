@@ -1,10 +1,11 @@
 # src/tools.py
 
-import os, json
+import os, json, math
 import requests
 import datetime
 import re 
 from typing import List, Any, Dict
+import traceback
 
 from langchain_core.tools import tool
 from langchain_core.runnables import RunnablePassthrough
@@ -15,13 +16,15 @@ from src.config import LLM, load_faiss_index, GMAPS_CLIENT
 
 from itertools import permutations
 from src.search import RegionPreFilteringRetriever
-from src.scheduler.smart_scheduler import SmartScheduler  # 👈 [핵심] 사용자의 로직 임포트
 
 # 🚨 [중요] time_planner에서 plan 함수 임포트 (이전 ImportError 해결)
 from src.time_planner import plan 
 
 
 # --- 헬퍼 함수 ---
+
+
+
 
 def get_admin_district_from_coords(lat: float, lng: float) -> str:
     """
@@ -78,15 +81,40 @@ def get_admin_district_from_coords(lat: float, lng: float) -> str:
         print(f"DEBUG: 📍 행정구역 변환 중 오류: {e}")
         return ""
 
+KOREAN_CITIES_AND_PROVINCES: List[str] = [
+    "서울", "부산", "대구", "인천", "광주", "대전", "울산", "세종",
+    "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주"
+]
+
 def get_coordinates(location_name: str):
-    """지명(예: 초량동)으로 위경도 좌표 획득"""
+    """
+    지명으로 위경도 좌표 획득. 실패 시 전국 광역시/도 컨텍스트를 붙여 재시도합니다.
+    """
     if not GMAPS_CLIENT: return None, None
     try:
-        # 쿼리에 한국 텍스트임을 명시
+        # 1차 시도: 원본 검색 (예: '서면')
         res = GMAPS_CLIENT.geocode(location_name, language='ko')
+        
+        # 2차 시도: 실패 시 전국 주요 광역시/도 컨텍스트를 붙여 재시도
+        if not res:
+            print(f"DEBUG: ⚠️ 좌표 획득 실패. 전국 {len(KOREAN_CITIES_AND_PROVINCES)}개 지역 컨텍스트로 재시도.")
+            
+            for province in KOREAN_CITIES_AND_PROVINCES:
+                # 🚨 [중요] 이미 쿼리에 포함된 광역명은 건너뛰어 불필요한 API 호출 방지
+                if province in location_name:
+                    continue
+
+                retry_query = f"{province} {location_name}"
+                res = GMAPS_CLIENT.geocode(retry_query, language='ko')
+                
+                if res:
+                    print(f"DEBUG: ✅ 좌표 획득 성공 (컨텍스트: {province})")
+                    break # 첫 번째 성공한 결과를 사용하고 즉시 종료
+
         if res:
             loc = res[0]['geometry']['location']
             return loc['lat'], loc['lng']
+            
     except Exception as e:
         print(f"DEBUG: 좌표 변환 실패 ({location_name}): {e}")
     return None, None
@@ -430,59 +458,126 @@ def get_weather_forecast(destination: str, dates: str) -> str:
 
 
 # --- [수정] 상세 경로 조회 함수 (도보 필터링 제거) ---
-def get_detailed_route(start_place: str, end_place: str, mode="transit"):
-    """두 장소 간의 상세 경로(대중교통/도보)를 조회합니다."""
-    if not GMAPS_CLIENT:
-        return None
+def calculate_distance_time(start_lat, start_lng, end_lat, end_lng, mode="driving"):
+    """
+    두 좌표 간의 직선 거리를 계산하고, 모드별 평균 속도로 소요 시간을 추정합니다.
+    (Google Maps API가 한국 내 운전/도보 경로를 제공하지 않을 때 사용)
+    """
+    R = 6371  # 지구 반지름 (km)
     
+    d_lat = math.radians(end_lat - start_lat)
+    d_lng = math.radians(end_lng - start_lng)
+    
+    a = math.sin(d_lat/2) * math.sin(d_lat/2) + \
+        math.cos(math.radians(start_lat)) * math.cos(math.radians(end_lat)) * \
+        math.sin(d_lng/2) * math.sin(d_lng/2)
+    
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+    distance_km = R * c
+    
+    # 모드별 예상 속도 (보정 계수 포함 - 직선거리라 실제보다 짧게 나오므로 속도를 낮게 잡음)
+    if mode == "walking":
+        speed_kmh = 3.5  # 도보 시속 3.5km 가정
+    elif mode == "driving":
+        speed_kmh = 25.0 # 도심 주행 시속 25km 가정
+    else:
+        speed_kmh = 25.0
+
+    duration_hours = distance_km / speed_kmh
+    duration_seconds = int(duration_hours * 3600)
+    
+    # 사람이 보기 좋은 텍스트 포맷
+    if duration_seconds < 3600:
+        duration_text = f"{duration_seconds // 60}분"
+    else:
+        h = duration_seconds // 3600
+        m = (duration_seconds % 3600) // 60
+        duration_text = f"{h}시간 {m}분"
+        
+    return distance_km, duration_seconds, duration_text
+
+# --- [수정] 상세 경로 조회 (Fallback 적용) ---
+def get_detailed_route(start_place: str, end_place: str, mode="transit", departure_time=None):
+    """
+    상세 경로 조회 (API 실패 시 '부산' 키워드 붙여서 좌표 재검색 후 추정)
+    """
+    if not GMAPS_CLIENT: return None
+    
+    if mode == "transit" and not departure_time:
+        departure_time = datetime.datetime.now()
+    if mode != "transit":
+        departure_time = None
+
+    # 1. API 호출 시도
     try:
         directions_result = GMAPS_CLIENT.directions(
             origin=start_place,
             destination=end_place,
             mode=mode,
-            departure_time=datetime.datetime.now(),
+            departure_time=departure_time,
             region="KR",
             language="ko"
         )
         
-        if not directions_result:
-            return None
+        if directions_result:
+            route = directions_result[0]['legs'][0]
+            # ... (기존 파싱 로직 유지) ...
+            steps_summary = []
+            for step in route['steps']:
+                travel_mode = step['travel_mode']
+                if travel_mode == 'TRANSIT':
+                    transit = step.get('transit_details', {})
+                    line = transit.get('line', {})
+                    line_name = line.get('short_name') or line.get('name') or "버스"
+                    vehicle = line.get('vehicle', {}).get('name') or "대중교통"
+                    steps_summary.append(f"[{vehicle}] {line_name}")
+                elif travel_mode == 'WALKING':
+                    steps_summary.append(f"🚶 도보 ({step['duration']['text']})")
+                elif travel_mode == 'DRIVING':
+                    raw_instr = step.get('html_instructions', '')
+                    clean_instr = re.sub(r'<[^>]+>', '', raw_instr)
+                    steps_summary.append(f"🚗 {clean_instr}")
+            
+            if not steps_summary: steps_summary.append(f"이동 ({route['duration']['text']})")
 
-        route = directions_result[0]['legs'][0]
-        duration = route['duration']['text']
-        distance = route['distance']['text']
+            return {
+                "mode": mode,
+                "duration": route['duration']['text'],
+                "duration_value": route['duration']['value'],
+                "distance": route['distance']['text'],
+                "steps": steps_summary
+            }
+            
+    except Exception as e:
+        # API 에러(NOT_FOUND 등)가 나면 아래 Fallback으로 넘어감
+        print(f"DEBUG: API 경로 조회 실패 ({e}). Fallback 시도.")
+
+    # 2. [Fallback] 직접 계산 (좌표 확보 재시도 포함)
+    print(f"DEBUG: ⚠️ 경로 없음 ({mode}). 좌표 기반 추정 시도.")
+
+    start_lat, start_lng = get_coordinates(start_place) 
+    end_lat, end_lng = get_coordinates(end_place)
+    
+    if start_lat and end_lat:
+        dist_km, sec, text = calculate_distance_time(
+            start_lat, start_lng, end_lat, end_lng, mode=mode
+        )
         
-        steps_summary = []
-        for step in route['steps']:
-            travel_mode = step['travel_mode']
-            
-            if travel_mode == 'TRANSIT':
-                transit = step.get('transit_details', {})
-                line = transit.get('line', {})
-                line_name = line.get('short_name') or line.get('name') or "버스"
-                vehicle = line.get('vehicle', {}).get('name') or "대중교통"
-                steps_summary.append(f"[{vehicle}] {line_name}")
-            
-            elif travel_mode == 'WALKING':
-                # 🚨 [수정] 모든 도보 경로 표시 (짧아도 포함)
-                walk_duration = step['duration']['text']
-                steps_summary.append(f"🚶 도보 {walk_duration}")
-            
-            else:
-                steps_summary.append(f"🚗 {travel_mode}")
-
-        if not steps_summary:
-            steps_summary.append(f"🚶 도보로 이동 ({duration})")
+        # 모드별 아이콘/텍스트 설정
+        if mode == "driving": icon, name = "🚗", "자차 이동"
+        elif mode == "walking": icon, name = "🚶", "도보 이동"
+        else: icon, name = "🚌", "대중교통/택시 이동"
 
         return {
-            "duration": duration,
-            "distance": distance,
-            "steps": steps_summary
+            "mode": mode,
+            "duration": text,
+            "duration_value": sec,
+            "distance": f"{dist_km:.1f} km",
+            "steps": [f"{icon} {name} (약 {text} 예상 / 직선거리 기반 추정)"]
         }
+    
+    return None
 
-    except Exception as e:
-        print(f"ERROR: 상세 경로 조회 오류: {e}")
-        return None
 
 # --- [수정] 경로 최적화 도구 (출발지 고정 로직 추가) ---
 @tool
@@ -588,43 +683,70 @@ def optimize_and_get_routes(places: List[str], start_location: str = "") -> str:
 @tool
 def plan_itinerary_timeline(itinerary: List[Dict]) -> str:
     """
-    여행 일정 리스트를 입력받아, 구글 맵 기반의 이동 시간과 
-    장소별 체류 시간을 계산하여 '타임라인(Timeline)'을 생성합니다.
+    여행 일정 리스트를 입력받아 타임라인을 생성합니다. (강력 진단 모드)
     """
     print(f"\n--- [DEBUG] SmartScheduler 호출 ---")
     
+    # 1. 입력 데이터 전체 진단
+    print(f"DEBUG: 1. 원본 itinerary 타입: {type(itinerary)}")
+    print(f"DEBUG: 1. 원본 itinerary 항목 수: {len(itinerary)}")
+    
     try:
-        # 1. 스케줄러 인스턴스 생성 (시작 시간 10:00 설정)
+        # Lazy Import
+        from src.scheduler.smart_scheduler import SmartScheduler
+        
         scheduler = SmartScheduler(start_time_str="10:00")
-        
-        # 2. 로직 실행 (이동 시간 계산 포함)
-        # itinerary는 [{'day': 1, 'name': '...', ...}, ...] 형태여야 함
-        
-        # 날짜별로 그룹화하여 처리
         timeline_result = []
         
-        # 날짜 목록 추출
-        days = sorted(list(set(item.get('day', 1) for item in itinerary)))
+        days = sorted(list(set(item.get('day', 1) for item in itinerary if isinstance(item, dict))))
         
         for day in days:
-            # 해당 날짜의 장소들만 추출
-            day_places = [item for item in itinerary if item.get('day', 1) == day]
+            day_places = [item for item in itinerary if item.get('day', 1) == day and isinstance(item, dict)]
             
-            # 스케줄러 돌리기 (SmartScheduler.plan_day 사용)
-            # plan_day는 리스트를 받아 타임라인 리스트를 반환
+            print(f"DEBUG: 2. Day {day}에 할당된 장소 개수: {len(day_places)}개")
+            
+            # 🚨 [CRITICAL LOOP] 모든 항목 검사 및 데이터 정규화
+            for idx, place in enumerate(day_places):
+                
+                # 2.1. 필수 키 'name' 확인 및 복구 시도
+                if 'name' not in place:
+                    
+                    # 대체 가능한 키들을 확인
+                    candidates = ['place', 'place_name', 'title', 'location']
+                    found_name = place.get('description', '이름 미상') # 기본값은 description
+                    
+                    for key in candidates:
+                        if key in place:
+                            found_name = place[key]
+                            break
+                    
+                    # 🚨 문제 항목 및 복구 내용 출력
+                    print(f"🚨 [ERROR: KEY MISSING] Day {day}, 항목 {idx}번 'name' 키 누락!")
+                    print(f"   -> 원본: {place}")
+                    print(f"   -> 복구 시도: 'name' 키를 '{found_name}'(으)로 강제 할당.")
+                    
+                    place['name'] = found_name
+                    
+                # 2.2. SmartScheduler가 기대하는 최소한의 키 확인 (없으면 추가)
+                if 'type' not in place:
+                    place['type'] = 'activity'
+            
+            # 3. 스케줄러 실행
             day_timeline = scheduler.plan_day(day_places)
             
-            # 결과에 'day' 정보 다시 주입 (SmartScheduler는 day를 모를 수 있음)
             for item in day_timeline:
                 item['day'] = day
                 timeline_result.append(item)
 
-        # 3. JSON 문자열로 변환하여 반환
+        # 최종 JSON 반환
         return json.dumps(timeline_result, ensure_ascii=False, indent=2)
 
     except Exception as e:
-        print(f"ERROR: 스케줄링 실패: {e}")
-        return "오류: 스케줄 생성 중 문제가 발생했습니다."
+        print(f"ERROR: 스케줄링 로직 실패 - 최종 예외")
+        # 🚨 상세 스택 트레이스 출력
+        traceback.print_exc() 
+        return f"오류: 스케줄 생성 실패 ({e})"
+    
 
 # 도구 목록 등록
 TOOLS = [search_attractions_and_reviews, get_weather_forecast, optimize_and_get_routes, plan_itinerary_timeline]
