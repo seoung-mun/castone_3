@@ -702,12 +702,15 @@ def optimize_and_get_routes(places: List[str], start_location: str = "") -> str:
 def plan_itinerary_timeline(itinerary: List[Dict]) -> str:
     """
     여행 일정 리스트를 입력받아 타임라인을 생성합니다. (강력 진단 모드)
+    [수정] 'move' 타입의 아이템을 먼저 제거하여 멱등성을 보장합니다.
     """
     print(f"\n--- [DEBUG] SmartScheduler 호출 ---")
     
-    # 1. 입력 데이터 전체 진단
-    print(f"DEBUG: 1. 원본 itinerary 타입: {type(itinerary)}")
+    # 멱등성 확보: 'move' 타입의 아이템을 걸러내고 시작
+    activities_only = [item for item in itinerary if item.get('type') != 'move']
+    
     print(f"DEBUG: 1. 원본 itinerary 항목 수: {len(itinerary)}")
+    print(f"DEBUG: 1. 활동(activity) 항목 수: {len(activities_only)}")
     
     try:
         # Lazy Import
@@ -716,40 +719,21 @@ def plan_itinerary_timeline(itinerary: List[Dict]) -> str:
         scheduler = SmartScheduler(start_time_str="10:00")
         timeline_result = []
         
-        days = sorted(list(set(item.get('day', 1) for item in itinerary if isinstance(item, dict))))
+        days = sorted(list(set(item.get('day', 1) for item in activities_only if isinstance(item, dict))))
         
         for day in days:
-            day_places = [item for item in itinerary if item.get('day', 1) == day and isinstance(item, dict)]
+            day_places = [item for item in activities_only if item.get('day', 1) == day and isinstance(item, dict)]
             
             print(f"DEBUG: 2. Day {day}에 할당된 장소 개수: {len(day_places)}개")
             
-            # 🚨 [CRITICAL LOOP] 모든 항목 검사 및 데이터 정규화
+            # 모든 항목 검사 및 데이터 정규화
             for idx, place in enumerate(day_places):
-                
-                # 2.1. 필수 키 'name' 확인 및 복구 시도
                 if 'name' not in place:
-                    
-                    # 대체 가능한 키들을 확인
-                    candidates = ['place', 'place_name', 'title', 'location']
-                    found_name = place.get('description', '이름 미상') # 기본값은 description
-                    
-                    for key in candidates:
-                        if key in place:
-                            found_name = place[key]
-                            break
-                    
-                    # 🚨 문제 항목 및 복구 내용 출력
-                    print(f"🚨 [ERROR: KEY MISSING] Day {day}, 항목 {idx}번 'name' 키 누락!")
-                    print(f"   -> 원본: {place}")
-                    print(f"   -> 복구 시도: 'name' 키를 '{found_name}'(으)로 강제 할당.")
-                    
-                    place['name'] = found_name
-                    
-                # 2.2. SmartScheduler가 기대하는 최소한의 키 확인 (없으면 추가)
+                    place['name'] = place.get('description', '이름 미상')
                 if 'type' not in place:
                     place['type'] = 'activity'
             
-            # 3. 스케줄러 실행
+            # 스케줄러 실행
             day_timeline = scheduler.plan_day(day_places)
             
             for item in day_timeline:
@@ -761,7 +745,6 @@ def plan_itinerary_timeline(itinerary: List[Dict]) -> str:
 
     except Exception as e:
         print(f"ERROR: 스케줄링 로직 실패 - 최종 예외")
-        # 🚨 상세 스택 트레이스 출력
         traceback.print_exc() 
         return f"오류: 스케줄 생성 실패 ({e})"
     

@@ -142,28 +142,34 @@ def supervisor_router(state: AgentState):
     return "SupervisorAgent"
 
 def supervisor_loop_router(state: AgentState):
-    last_message = state['messages'][-1]
-    if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
+    """
+    [수정] 에이전트의 루프를 제어하는 핵심 라우터.
+    - 도구 호출이 필요하면 -> call_tools
+    - 모든 일정이 완료되었고, PDF 버튼이 활성화(최종 정리 완료)되었다면 -> END
+    - 그 외의 경우, 계속 계획을 수립하기 위해 -> SupervisorAgent
+    """
+    # 1. 도구 호출이 있으면 -> 도구 실행
+    if hasattr(state['messages'][-1], 'tool_calls') and state['messages'][-1].tool_calls:
         return "call_tools"
-    if "[FINAL_ITINERARY_JSON]" in normalize_content_to_str(last_message.content):
-        return END
     
-    # 추가적인 종료 조건: 모든 계획이 완료되었는지 명시적으로 확인
+    # 2. 모든 계획이 완료되었는지 확인
     total_days = state.get('total_days', 1)
     activity_level = state.get('activity_level', 3)
     itinerary = state.get('itinerary', [])
-    day_counts = {d: 0 for d in range(1, total_days + 1)}
-    for item in itinerary:
-        if item.get('type') != 'move':
-            day = item.get('day')
-            if day and isinstance(day, int) and day in day_counts:
-                day_counts[day] += 1
     
-    if all(count >= activity_level for count in day_counts.values()) and itinerary:
-        # 최종 정리를 위해 다시 SupervisorAgent로 가서 plan_itinerary_timeline을 호출하게 함
-        return "SupervisorAgent"
+    # 'move'를 제외한 실제 활동 수 계산
+    day_counts = {d: sum(1 for item in itinerary if item.get('day') == d and item.get('type') != 'move') for d in range(1, total_days + 1)}
+    
+    is_plan_complete = all(count >= activity_level for count in day_counts.values())
 
+    # 3. 종료 조건: 계획이 완료되었고, 최종 정리(PDF 버튼 활성화)까지 끝났다면 종료
+    if is_plan_complete and state.get('show_pdf_button'):
+        print("DEBUG: 모든 계획 및 최종 정리가 완료되어 워크플로우를 종료합니다.")
+        return END
+
+    # 4. 그 외의 경우: 계속해서 Supervisor에게 제어권 전달
     return "SupervisorAgent"
+
 
 # --- 5. 도구 노드 & 그래프 ---
 def call_tools_node(state: AgentState):
