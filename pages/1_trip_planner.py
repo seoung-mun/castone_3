@@ -106,16 +106,16 @@ def create_itinerary_pdf(itinerary, destination, dates, weather, final_routes, t
                 # 이동은 회색으로 작게 표시하여 시각적 구분
                 pdf.set_text_color(100, 100, 100) # Gray
                 pdf.set_font_size(10)
-                
+
                 start_t = item.get('start', '')
                 end_t = item.get('end', '')
                 duration = item.get('duration_text', '')
                 transport = item.get('transport', '이동')
-                
-                # 예: "⬇️ 10:30~11:00 (30분) : 1003번 버스"
-                move_text = f"      ⬇️  {start_t} ~ {end_t} ({duration}) : {transport}"
+
+                # 🚨 [수정] 이모지 대신 화살표 문자 사용 (폰트 호환성)
+                move_text = f"      |  {start_t} ~ {end_t} ({duration}) : {transport}"
                 pdf.cell(0, 8, text=move_text, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-                
+
                 # 색상 및 크기 원복
                 pdf.set_text_color(0, 0, 0) # Black
                 pdf.set_font_size(11)
