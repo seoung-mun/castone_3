@@ -67,9 +67,15 @@ def create_itinerary_pdf(itinerary, destination, dates, weather, final_routes, t
     pdf.set_font_size(24)
     # ln=True -> new_x=XPos.LMARGIN, new_y=YPos.NEXT 로 변경
     pdf.cell(0, 20, text=f"{destination} 여행 계획", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
-    
+
     pdf.set_font_size(12)
-    pdf.cell(0, 10, text=f"기간: {dates} | 날씨: {weather if weather else '정보 없음'}", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
+    pdf.cell(0, 10, text=f"기간: {dates}", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
+
+    # 날씨 정보 (여러 줄일 수 있으므로 multi_cell 사용)
+    if weather and weather.strip() and weather != '정보 없음':
+        pdf.set_font_size(10)
+        pdf.multi_cell(0, 5, text=f"날씨: {weather}", align='C')
+
     pdf.ln(10)
 
     # 안전한 정렬 (day 키 기준)
@@ -153,6 +159,32 @@ def create_itinerary_pdf(itinerary, destination, dates, weather, final_routes, t
 # --- 3. 페이지 설정 ---
 st.set_page_config(page_title="AI 여행 플래너", layout="centered")
 st.title("💬 AI 여행 플래너")
+
+# --- 3-1. 사이드바 질문 가이드 추가 ---
+with st.sidebar:
+    st.header("질문 가이드")
+    st.markdown("""
+    ### 장소 추천 요청
+    - "[관광지] 근처 관광지 추천해줘"
+    - "[관광지 또는 지역명]에서 맛있는 식당 알려줘"
+    - "[관광지 또는 지역명] 근처 카페 추천해줘"
+
+    ### 일정 수정
+    - "[]일차 일정 변경하고 싶어"
+    - "이 일정에서 이 장소 빼고 다른 곳 추천해줘"
+    - "점심 식사할 식당 변경해줘"
+
+    ### 경로 최적화
+    - "경로 최적화해줘"
+    - "[]에서 []까지 이동 시간 확인해줘"
+
+    ### PDF 다운로드
+    - "현재까지 일정 PDF로 작성해줘"
+
+    ---
+
+    **자유롭게 대화하듯 질문하세요**
+    """)
 
 if "preferences_collected" not in st.session_state:
     st.warning("⚠️ 정보 입력 페이지에서 먼저 여행 정보를 입력해주세요.")

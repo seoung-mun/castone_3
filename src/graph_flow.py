@@ -76,7 +76,9 @@ def create_specialist_agent(system_prompt: str):
         if match:
             name, day, type = match.groups()
             new_item = {'day': int(day), 'type': type, 'name': name, 'description': ''}
-            if new_item not in itinerary: itinerary.append(new_item)
+            if new_item not in itinerary:
+                itinerary.append(new_item)
+                print(f"DEBUG: 장소 추가됨 - {name} (Day {day}, {type})")
 
         show_pdf_button = state.get('show_pdf_button', False)
         if "[STATE_UPDATE: show_pdf_button=True]" in content: show_pdf_button = True
@@ -87,7 +89,8 @@ def create_specialist_agent(system_prompt: str):
 # --- 3. Supervisor (라우터) 정의 ---
 def supervisor_router(state: AgentState):
     print("--- (Supervisor) 다음 작업 결정 ---")
-    
+    print(f"DEBUG: 현재 계획 중인 날짜 = {state.get('current_planning_day', 1)}일차")
+
     if not state.get('messages') or not state['messages']: return "InfoCollectorAgent"
     last_message = state['messages'][-1]
     
@@ -140,7 +143,9 @@ supervisor_prompt = """당신은 AI 여행 플래너 팀의 '슈퍼바이저'입
 4. 2. **날씨 정보 정리:** 여행 계획 출력 시, 날씨 정보는 raw 데이터 대신 "최고 기온 X도, 맑음" 등 사람이 읽기 좋은 형식으로 요약하여 언급하십시오.
 
 ### 주요 임무
-1.  **계획 추가 확인:** 장소 선택 시 "네, [장소명]을 [N]일차 [유형]에 추가합니다."라고 명확히 응답하세요.
+1.  **계획 추가 확인 (🚨중요🚨):** 장소 선택 시 반드시 **현재 상태의 '현재 계획 중인 날짜' 값**을 사용하여 "네, [장소명]을 [현재 계획 중인 날짜]일차 [유형]에 추가합니다."라고 명확히 응답하세요.
+   - 예: 상태가 "현재 계획 중인 날짜: 2일차"라면 → "네, 국수마루를 2일차 식당 계획에 추가합니다."
+   - **절대로 항상 "1일차"라고 하지 마세요.** 상태 정보를 정확히 읽어서 사용하십시오.
 2. **하루 단위 경로 최적화:** 사용자가 경로 최적화를 요청하면, `itinerary`에 있는 장소들과 **현재 상태의 `start_location`을 인자로 전달**하여 `optimize_and_get_routes` 도구를 호출하세요.3.  **도구 결과 브리핑:** 검색 결과는 반드시 목록 형태로 요약하여 전달하세요.
 4.  **날씨 브리핑:** 날씨 정보를 받으면 "[온도/하늘상태]이므로 [추천활동] 어떠세요?" 형태로 제안하세요.
 5. **PDF 생성 및 다운로드 (★★가장 중요★★):**
@@ -189,6 +194,8 @@ attraction_prompt = """당신은 '관광지 전문가'입니다.
 1. **즉시 검색:** 사용자의 말에 **'~근처', 지역명, 또는 구체적인 활동(바다 구경 등)**이 포함되어 있다면, **되묻지 말고 즉시** `search_attractions_and_reviews` 도구를 호출하세요.
 2. **정보 부족 시에만 질문:** 사용자가 단순히 "관광지 추천해줘"라고만 했을 때만 "어떤 스타일의 관광지를 원하시나요?"라고 질문하세요.
 3. **도구 호출:** `preference`와 `start_location`(출발지)을 고려하여 검색 쿼리를 구체적으로 만드세요. (예: "부산역 근처 바다 구경")
+4. **계획 추가 시 (중요):** 장소를 추천하고 사용자가 선택하면, 반드시 **현재 상태의 '현재 계획 중인 날짜' 값**을 확인하여 해당 날짜에 추가한다고 말하세요.
+   - 예: "네, [장소명]을 [현재 계획 중인 날짜]일차 관광지 계획에 추가합니다."
 """
 AttractionAgent = create_specialist_agent(attraction_prompt)
 
@@ -199,10 +206,26 @@ restaurant_prompt = """당신은 '식당 전문가'입니다.
 1. **즉시 검색:** 사용자의 말에 **'~근처', 지역명, 메뉴 이름(회, 국밥 등)**이 포함되어 있다면, **"찾아볼까요?"라고 되묻지 말고 즉시** `search_attractions_and_reviews` 도구를 호출하세요.
 2. **정보 부족 시에만 질문:** 사용자가 단순히 "밥 먹을래"라고만 했을 때만 "어떤 메뉴를 원하시나요?"라고 질문하세요.
 3. **도구 호출:** `preference`와 `start_location`(출발지)을 고려하여 검색 쿼리를 구체적으로 만드세요. (예: "부산역 근처 횟집 추천")
+4. **계획 추가 시 (중요):** 식당을 추천하고 사용자가 선택하면, 반드시 **현재 상태의 '현재 계획 중인 날짜' 값**을 확인하여 해당 날짜에 추가한다고 말하세요.
+   - 예: "네, [식당명]을 [현재 계획 중인 날짜]일차 식당 계획에 추가합니다."
 """
 RestaurantAgent = create_specialist_agent(restaurant_prompt)
 
-weather_prompt = "당신은 '날씨 분석가'입니다. get_weather_forecast 도구를 호출하세요."
+weather_prompt = """당신은 '날씨 분석가'입니다.
+
+### 행동 지침:
+1. **도구 호출:** `get_weather_forecast` 도구를 호출하여 날씨 정보를 가져오세요.
+2. **결과 브리핑:** 도구 결과를 받으면, **각 시간대별 날씨를 목록 형태로 줄바꿈하여** 사용자에게 전달하세요.
+   - 잘못된 예: "09시 15도 맑음, 12시 18도 구름 많음..." (한 줄로 나열)
+   - 올바른 예:
+     ```
+     제주도 날씨 예보입니다:
+     - 09:00: 15.0℃, 맑음
+     - 12:00: 18.0℃, 구름 많음
+     - 15:00: 20.0℃, 맑음
+     ```
+3. **간단한 요약 추가:** 날씨 정보 뒤에 "[온도/하늘상태]이므로 [추천활동] 어떠세요?" 형태로 제안하세요.
+"""
 WeatherAgent = create_specialist_agent(weather_prompt)
 
 # --- 5. 도구 실행 노드 ---
