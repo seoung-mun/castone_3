@@ -24,7 +24,6 @@ else:
 
 # --- 2. RAG FAISS 인덱스 로드 함수 ---
 
-@st.cache_resource # 👈 [추가]
 def load_faiss_index():
     """FAISS 인덱스를 로드합니다."""
     embeddings = HuggingFaceEmbeddings(
@@ -35,3 +34,8 @@ def load_faiss_index():
         review_faiss, embeddings, allow_dangerous_deserialization=True
     )
     return load_db
+
+# --- 3. FAISS 인덱스 인스턴스 생성 ---
+print("FAISS 인덱스를 로드합니다...")
+DB_INSTANCE = load_faiss_index()
+print("FAISS 인덱스 로드가 완료되었습니다.")

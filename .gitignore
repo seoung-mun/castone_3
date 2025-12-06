@@ -21,3 +21,5 @@ metadata_preview.csv
 .DS_Store
 
 venv/
+
+gemini.md
