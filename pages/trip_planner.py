@@ -31,15 +31,15 @@ def normalize_to_string(content):
     return str(content)
 
 # --- 2. PDF 생성 함수 ---
-def create_itinerary_pdf(itinerary, destination, dates, weather, final_routes, total_days):
+def create_itinerary_pdf(itinerary, destination, dates, weather, final_routes, total_days, start_location=None):
     pdf = FPDF()
     pdf.add_page()
-    
+
     # 폰트 설정 (한글 깨짐 방지)
     # 폰트 파일이 프로젝트 루트에 있어야 합니다. 없으면 Arial(한글 미지원)로 동작
     font_path = 'NanumGothic.ttf'
     bold_font_path = 'NanumGothicBold.ttf'
-    
+
     has_korean_font = False
     try:
         if os.path.exists(font_path):
@@ -48,7 +48,7 @@ def create_itinerary_pdf(itinerary, destination, dates, weather, final_routes, t
                 pdf.add_font('NanumGothic', 'B', bold_font_path)
             else:
                 pdf.add_font('NanumGothic', 'B', font_path)
-            
+
             pdf.set_font('NanumGothic', '', 12)
             has_korean_font = True
         else:
@@ -66,6 +66,11 @@ def create_itinerary_pdf(itinerary, destination, dates, weather, final_routes, t
     pdf.set_font_size(12)
     pdf.cell(0, 10, text=f"기간: {dates}", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
 
+    # 출발지
+    if start_location:
+        pdf.set_font_size(11)
+        pdf.cell(0, 8, text=f"출발지/숙소: {start_location}", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
+
     # 날씨
     if weather and weather.strip() and weather != '정보 없음':
         pdf.set_font_size(10)
@@ -73,27 +78,32 @@ def create_itinerary_pdf(itinerary, destination, dates, weather, final_routes, t
 
     pdf.ln(10)
 
-    # 일정 정렬
+    # 일정 정렬 (원본 순서 유지하면서 day와 인덱스로 정렬)
     try:
-        sorted_itinerary = sorted(itinerary, key=lambda x: (int(x.get('day', 1)), x.get('start', '00:00')))
+        sorted_itinerary = sorted(enumerate(itinerary), key=lambda x: (int(x[1].get('day', 1)), x[1].get('start', '00:00'), x[0]))
+        sorted_itinerary = [item[1] for item in sorted_itinerary]  # 인덱스 제거
     except:
         sorted_itinerary = itinerary
 
     # 일자별 출력
     for day_num in range(1, total_days + 1):
+        # 2일차부터는 여유 공간 추가 (페이지는 자동으로 넘어감)
+        if day_num > 1:
+            pdf.ln(15)  # 일차 사이 여유 공간
+
         pdf.set_font_size(18)
         if has_korean_font: pdf.set_font('NanumGothic', 'B', 18)
-        
+
         pdf.cell(0, 15, text=f"Day {day_num}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        
+
         pdf.set_font_size(11)
         if has_korean_font: pdf.set_font('NanumGothic', '', 11)
 
         items_today = [item for item in sorted_itinerary if int(item.get('day', 1)) == day_num]
-        
+
         if not items_today:
             pdf.cell(0, 10, text="  - 계획된 일정이 없습니다.", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-            pdf.ln(5)
+            pdf.ln(10)
             continue
 
         for item in items_today:
@@ -107,22 +117,30 @@ def create_itinerary_pdf(itinerary, destination, dates, weather, final_routes, t
                 pdf.cell(0, 8, text=move_text, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
                 pdf.set_text_color(0, 0, 0) # 검정색 복구
                 pdf.set_font_size(11)
-            
+
             # 장소(Activity) 항목
             else:
                 time_info = f"[{item.get('start', '시간 미정')}-{item.get('end', '')}]" if item.get('start') else "[시간 미정]"
-                
+
                 if has_korean_font: pdf.set_font('NanumGothic', 'B', 12)
                 main_text = f"  ● {time_info} {item.get('name', '이름 없음')} ({item.get('category', item_type)})"
                 pdf.cell(0, 8, text=main_text, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-                
+
                 # 설명
                 if item.get('description'):
                     if has_korean_font: pdf.set_font('NanumGothic', '', 10)
                     pdf.set_x(20) # 들여쓰기
                     pdf.multi_cell(0, 5, text=f"{item['description']}")
                     pdf.ln(2)
+
+        # 일차별 구분선과 메모 공간
         pdf.ln(10)
+        pdf.line(pdf.get_x(), pdf.get_y(), pdf.get_x() + 190, pdf.get_y())
+        pdf.ln(5)
+        pdf.set_font_size(14)
+        if has_korean_font: pdf.set_font('NanumGothic', '', 14)
+        pdf.cell(0, 10, text="메모:", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.ln(20)  # 메모 공간
 
     return bytes(pdf.output())
 
@@ -131,13 +149,39 @@ st.set_page_config(page_title="AI 여행 플래너", layout="centered")
 st.title("💬 AI 여행 플래너")
 
 with st.sidebar:
-    st.header("질문 가이드")
+    # ===== 1. 현재 여행 정보 =====
+    st.header("📍 현재 여행 정보")
+
+    st.markdown(f"**목적지:** {st.session_state.get('destination', '-')}")
+    if st.session_state.get('start_location'):
+        st.markdown(f"**출발지:** {st.session_state.get('start_location', '-')}")
+    st.markdown(f"**여행 기간:** {st.session_state.get('dates', '-')}")
+
+    st.markdown("---")
+
+    # ===== 2. 사용 가이드 =====
+    st.header("💡 사용 가이드")
+
     st.markdown("""
-    - "근처 관광지 추천해줘"
-    - "맛집 알려줘"
-    - "일정 수정하고 싶어"
-    - "경로 최적화해줘"
-    - "PDF로 만들어줘"
+    **기본 질문 예시**
+    - "다음 날 계획을 알려줘"
+    - "맛집 추가해줘"
+    - "카페 추천해줘"
+    - "1일차 계획 다시 알려줘"
+
+    **장소 추가/변경**
+    - "[지역명] 관광지 추가해줘"
+    - "실내 활동으로 바꿔줘"
+    - "사진 찍기 좋은 곳 추천해줘"
+
+    **계획 수정**
+    - 날씨에 맞는 대안 요청
+    - 이동 시간을 고려한 재배치
+    - 특정 테마의 장소 추천
+
+    **완료 후**
+    - PDF 다운로드로 상세 일정 저장
+    - 이동 경로 및 소요시간 포함
     """)
 
 # 필수 정보 체크
@@ -212,13 +256,18 @@ if not st.session_state.messages:
     if 'session_id' not in st.session_state:
         st.session_state.session_id = str(time.time())
 
+    # 출발지 정보가 있으면 포함
+    start_location_text = ""
+    if st.session_state.get('start_location'):
+        start_location_text = f"\n    - 출발지/숙소: {st.session_state.get('start_location')}"
+
     initial_prompt = f"""
     안녕하세요! 아래 정보로 여행 계획을 세워주세요.
-    - 목적지: {st.session_state.get('destination')}
+    - 목적지: {st.session_state.get('destination')}{start_location_text}
     - 일정: {st.session_state.get('dates')} (총 {st.session_state.get('total_days')}일)
     - 스타일: {st.session_state.get('preference')}
     - 동행: {st.session_state.get('group_type')}
-    
+
     날씨 확인 후, 1일차 일정부터 바로 시작해주세요.
     """
     st.session_state.messages.append(HumanMessage(content=initial_prompt))
@@ -248,8 +297,9 @@ if st.session_state.show_pdf_button:
         st.session_state.destination,
         st.session_state.dates,
         weather_info,
-        "", 
-        st.session_state.total_days
+        "",
+        st.session_state.total_days,
+        st.session_state.get("start_location")
     )
     if pdf_bytes:
         st.download_button(
