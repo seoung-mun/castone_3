@@ -30,6 +30,41 @@ def normalize_to_string(content):
         return "\n".join(texts)
     return str(content)
 
+# --- helper: normalize itinerary for PDF output ---
+def _normalize_itinerary_for_pdf(itinerary, total_days=None):
+    norm = []
+    for item in itinerary:
+        if not isinstance(item, dict):
+            continue
+        it = item.copy()
+        day = it.get('day', 1)
+        if isinstance(day, str):
+            m = re.search(r'(\d+)', day)
+            try:
+                day = int(m.group(1)) if m else 1
+            except:
+                day = 1
+        else:
+            try:
+                day = int(day)
+            except:
+                day = 1
+        if total_days:
+            try:
+                td = int(total_days)
+                if day < 1: day = 1
+                if day > td: day = td
+            except:
+                pass
+        it['day'] = day
+        if 'description' not in it: it['description'] = it.get('description', '')
+        if 'type' not in it and 'category' in it: it['type'] = it.get('category')
+        if 'name' not in it: it['name'] = it.get('장소명', it.get('name', '이름 없음'))
+        # ✨ [새로 추가] reviews 필드 기본값 설정
+        if 'reviews' not in it: it['reviews'] = []
+        norm.append(it)
+    return norm
+
 # --- 2. PDF 생성 함수 ---
 def create_itinerary_pdf(itinerary, destination, dates, weather, final_routes, total_days, start_location=None):
     pdf = FPDF()
@@ -78,12 +113,16 @@ def create_itinerary_pdf(itinerary, destination, dates, weather, final_routes, t
 
     pdf.ln(10)
 
+    # Normalize items first to ensure 'day' is int for sorting
+    normalized_itinerary = _normalize_itinerary_for_pdf(itinerary, total_days)
+
     # 일정 정렬 (원본 순서 유지하면서 day와 인덱스로 정렬)
     try:
-        sorted_itinerary = sorted(enumerate(itinerary), key=lambda x: (int(x[1].get('day', 1)), x[1].get('start', '00:00'), x[0]))
+        sorted_itinerary = sorted(enumerate(normalized_itinerary), key=lambda x: (int(x[1].get('day', 1)), x[1].get('start', '00:00') or '00:00', x[0]))
         sorted_itinerary = [item[1] for item in sorted_itinerary]  # 인덱스 제거
-    except:
-        sorted_itinerary = itinerary
+    except Exception:
+        # As a safe fallback, use normalized list directly
+        sorted_itinerary = normalized_itinerary
 
     # 일자별 출력
     for day_num in range(1, total_days + 1):
@@ -133,6 +172,22 @@ def create_itinerary_pdf(itinerary, destination, dates, weather, final_routes, t
                     pdf.multi_cell(0, 5, text=f"{item['description']}")
                     pdf.ln(2)
 
+                # ✨ [새로 추가] 리뷰 섹션
+                reviews = item.get('reviews', [])
+                if reviews and isinstance(reviews, list):
+                    if has_korean_font: pdf.set_font('NanumGothic', '', 9)
+                    pdf.set_x(20)
+                    for review in reviews:
+                        # 리뷰 항목이 문자열이라면 그대로, dict라면 포매팅
+                        if isinstance(review, str):
+                            review_text = review
+                        elif isinstance(review, dict):
+                            review_text = review.get('text', str(review))
+                        else:
+                            review_text = str(review)
+                        pdf.multi_cell(0, 4, text=f"  • {review_text}")
+                    pdf.ln(2)
+
         # 일차별 구분선과 메모 공간
         pdf.ln(10)
         pdf.line(pdf.get_x(), pdf.get_y(), pdf.get_x() + 190, pdf.get_y())
@@ -149,6 +204,276 @@ st.set_page_config(page_title="AI 여행 플래너", layout="centered")
 st.title("💬 AI 여행 플래너")
 
 with st.sidebar:
+    st.markdown("---")
+    st.header("🛠️ 개발자 테스트 도구")
+    
+    # 체크박스를 켰을 때만 테스트 버튼이 보이게 설정
+    if st.checkbox("PDF 생성 테스트 모드 켜기"):
+        
+        # 1. 테스트용 가짜 데이터 생성 (실제 JSON 구조에 맞춤)
+        if st.button("🧪 테스트 데이터 로드 및 PDF 생성"):
+            
+            # (1) 메타데이터
+            mock_destination = "서울 성수동"
+            mock_dates = "2025-12-16 ~ 2025-12-19 (4일간)"
+            mock_total_days = 4
+            mock_weather = "맑음, 기온 12~18도 / 통풍이 잘 되는 옷 추천"
+            mock_routes = "[최적 경로 요약]\n성수동 일대에서 각 명소들을 효율적으로 연결한 경로입니다. 대중교통(버스, 지하철) 이용으로 이동 시간을 최소화했습니다."
+            
+            # (2) 실제 JSON 구조: day(정수), type, name, description, start, end
+            mock_itinerary = [
+                # ===== Day 1 =====
+                {
+                    "day": 1,
+                    "type": "식당",
+                    "name": "카멜 성수점",
+                    "description": "신선한 재료로 만든 정통 한식 요리를 즐길 수 있는 식당입니다.",
+                    "start": "10:00",
+                    "end": "11:30"
+                },
+                {
+                    "day": 1,
+                    "type": "move",
+                    "transport": "버스 2412",
+                    "duration_text": "약 22분",
+                    "start": "11:30",
+                    "end": "11:52"
+                },
+                {
+                    "day": 1,
+                    "type": "카페",
+                    "name": "성수동대림창고갤러리",
+                    "description": "예술 감성과 함께 편안함을 느낄 수 있는 갤러리 카페입니다.",
+                    "start": "11:52",
+                    "end": "13:22"
+                },
+                {
+                    "day": 1,
+                    "type": "move",
+                    "transport": "버스 성동13",
+                    "duration_text": "약 34분",
+                    "start": "13:22",
+                    "end": "13:56"
+                },
+                {
+                    "day": 1,
+                    "type": "관광지",
+                    "name": "서울숲",
+                    "description": "도시 속 자연을 만끽할 수 있는 광활한 공원으로 산책하기 좋습니다.",
+                    "start": "13:56",
+                    "end": "15:26"
+                },
+                {
+                    "day": 1,
+                    "type": "move",
+                    "transport": "버스 6013",
+                    "duration_text": "약 20분",
+                    "start": "15:26",
+                    "end": "15:47"
+                },
+                {
+                    "day": 1,
+                    "type": "식당",
+                    "name": "글로우 성수",
+                    "description": "세련된 분위기에서 건강식 메뉴를 제공하는 레스토랑입니다.",
+                    "start": "15:47",
+                    "end": "17:17"
+                },
+
+                # ===== Day 2 =====
+                {
+                    "day": 2,
+                    "type": "관광지",
+                    "name": "서울숲 가족마당",
+                    "description": "가족 단위로 즐길 수 있는 넓은 잔디 공간과 포토존이 있습니다.",
+                    "start": "10:00",
+                    "end": "11:30"
+                },
+                {
+                    "day": 2,
+                    "type": "move",
+                    "transport": "지하철 2호선",
+                    "duration_text": "약 22분",
+                    "start": "11:30",
+                    "end": "11:52"
+                },
+                {
+                    "day": 2,
+                    "type": "식당",
+                    "name": "아키야마 성수본점",
+                    "description": "프리미엄 돈까스와 다양한 일식 요리로 유명한 고급 음식점입니다.",
+                    "start": "11:52",
+                    "end": "13:22"
+                },
+                {
+                    "day": 2,
+                    "type": "move",
+                    "transport": "지하철 2호선 + 버스 270",
+                    "duration_text": "약 38분",
+                    "start": "13:22",
+                    "end": "13:32"  # 실제로는 14:00 정도지만 표기 간소화
+                },
+                {
+                    "day": 2,
+                    "type": "카페",
+                    "name": "바이닐 성수",
+                    "description": "레트로한 감성과 아늑한 분위기가 매력적인 독립 카페입니다.",
+                    "start": "14:00",
+                    "end": "15:30"
+                },
+                {
+                    "day": 2,
+                    "type": "move",
+                    "transport": "버스 심야A21",
+                    "duration_text": "약 14분",
+                    "start": "15:30",
+                    "end": "15:45"
+                },
+                {
+                    "day": 2,
+                    "type": "관광지",
+                    "name": "홍대선원",
+                    "description": "홍대의 문화와 예술을 체험할 수 있는 갤러리와 전시 공간입니다.",
+                    "start": "15:45",
+                    "end": "17:15"
+                },
+                {
+                    "day": 2,
+                    "type": "move",
+                    "transport": "버스",
+                    "duration_text": "약 41분",
+                    "start": "17:15",
+                    "end": "17:56"
+                },
+                {
+                    "day": 2,
+                    "type": "식당",
+                    "name": "사조미가",
+                    "description": "신선한 회와 정통 일식 코스를 제공하는 프리미엄 식당입니다.",
+                    "start": "18:00",
+                    "end": "19:30"
+                },
+
+                # ===== Day 3 =====
+                {
+                    "day": 3,
+                    "type": "카페",
+                    "name": "앤트러사이트 연희점",
+                    "description": "감성적인 인테리어와 정성스러운 음료로 유명한 브런치 카페입니다.",
+                    "start": "10:00",
+                    "end": "11:30"
+                },
+                {
+                    "day": 3,
+                    "type": "move",
+                    "transport": "버스 N62 + 버스 6010",
+                    "duration_text": "약 70분",
+                    "start": "11:30",
+                    "end": "12:40"
+                },
+                {
+                    "day": 3,
+                    "type": "식당",
+                    "name": "은성보쌈",
+                    "description": "풍미 있는 보쌈과 다양한 반찬으로 알려진 전통 한식당입니다.",
+                    "start": "12:40",
+                    "end": "14:10"
+                },
+                {
+                    "day": 3,
+                    "type": "move",
+                    "transport": "지하철 3호선",
+                    "duration_text": "약 17분",
+                    "start": "14:10",
+                    "end": "14:27"
+                },
+                {
+                    "day": 3,
+                    "type": "카페",
+                    "name": "호텔수선화",
+                    "description": "우아한 분위기와 프리미엄 디저트로 오후 시간을 즐길 수 있습니다.",
+                    "start": "14:27",
+                    "end": "15:57"
+                },
+                {
+                    "day": 3,
+                    "type": "move",
+                    "transport": "버스 261",
+                    "duration_text": "약 22분",
+                    "start": "15:57",
+                    "end": "16:19"
+                },
+                {
+                    "day": 3,
+                    "type": "관광지",
+                    "name": "서울로7017",
+                    "description": "옛 고가도로를 공원으로 재탄생시킨 핫플레이스로 야경이 아름답습니다.",
+                    "start": "16:19",
+                    "end": "17:49"
+                },
+                {
+                    "day": 3,
+                    "type": "move",
+                    "transport": "버스 463",
+                    "duration_text": "약 33분",
+                    "start": "17:49",
+                    "end": "18:22"
+                },
+                {
+                    "day": 3,
+                    "type": "식당",
+                    "name": "유래회관",
+                    "description": "신선한 회와 다양한 해산물 요리로 저녁을 우아하게 마무리할 수 있습니다.",
+                    "start": "18:22",
+                    "end": "19:52"
+                },
+
+                # ===== Day 4 =====
+                {
+                    "day": 4,
+                    "type": "관광지",
+                    "name": "성수동구두테마공원",
+                    "description": "서울의 신발 산업 역사를 배우고 다양한 구두와 패션 제품을 볼 수 있는 공간입니다.",
+                    "start": "10:00",
+                    "end": "12:00"
+                },
+            ]
+            
+            # (3) 세션 상태 강제 업데이트
+            st.session_state.destination = mock_destination
+            st.session_state.dates = mock_dates
+            st.session_state.itinerary = mock_itinerary
+            st.session_state.total_days = mock_total_days
+            st.session_state.current_weather = mock_weather
+
+            # (4) 정규화 후 PDF 생성
+            normalized_mock = _normalize_itinerary_for_pdf(mock_itinerary, mock_total_days)
+            
+            try:
+                pdf_data = create_itinerary_pdf(
+                    itinerary=normalized_mock,
+                    destination=mock_destination,
+                    dates=mock_dates,
+                    weather=mock_weather,
+                    final_routes=mock_routes,
+                    total_days=mock_total_days
+                )
+                
+                # (5) 다운로드 버튼 생성
+                if pdf_data:
+                    st.success("✅ 테스트 PDF 생성 완료!")
+                    st.download_button(
+                        label="📥 테스트 PDF 다운로드",
+                        data=pdf_data,
+                        file_name=f"test_itinerary_{datetime.now().strftime('%Y%m%d')}.pdf",
+                        mime="application/pdf"
+                    )
+                else:
+                    st.error("❌ PDF 생성 실패 (데이터 없음)")
+            except Exception as e:
+                st.error(f"❌ 에러 발생: {e}")
+                st.write(f"상세: {str(e)}")
+    
     # ===== 1. 현재 여행 정보 =====
     st.header("📍 현재 여행 정보")
 
@@ -244,6 +569,12 @@ async def run_ai_agent():
 
     st.session_state.messages = response.get('messages', [])
     st.session_state.itinerary = response.get('itinerary', [])
+    # 강제 정규화: day 정수형 및 기본 키 보장
+    try:
+        st.session_state.itinerary = _normalize_itinerary_for_pdf(st.session_state.itinerary, st.session_state.get('total_days', None))
+    except Exception as e:
+        print("DEBUG: 페이지측 itinerary 정규화 실패:", e)
+
     st.session_state.current_weather = response.get('current_weather', '')
     st.session_state.show_pdf_button = response.get('show_pdf_button', False)
     st.session_state.current_anchor = response.get('current_anchor', '')
@@ -292,6 +623,111 @@ for msg in st.session_state.messages:
 # --- 8. PDF 다운로드 버튼 ---
 if st.session_state.show_pdf_button:
     weather_info = st.session_state.get('current_weather', '날씨 정보 없음')
+    
+    # ✨ [새로 추가] PDF 생성 전 데이터 검증
+    st.write("### 🔍 PDF 생성 데이터 검증")
+    
+    with st.expander("📊 데이터 상세 확인 (클릭하여 펼치기)", expanded=False):
+        # 1. Itinerary 구조 검증
+        st.write("#### 1️⃣ Itinerary 구조 검증")
+        
+        itinerary_data = st.session_state.itinerary
+        st.write(f"**총 항목 수:** {len(itinerary_data)}")
+        
+        # Day별 분류
+        day_groups = {}
+        for idx, item in enumerate(itinerary_data):
+            day = int(item.get('day', 1))
+            if day not in day_groups:
+                day_groups[day] = []
+            day_groups[day].append((idx, item))
+        
+        for day in sorted(day_groups.keys()):
+            items = day_groups[day]
+            st.write(f"**Day {day}:** {len(items)}개 항목")
+            
+            for idx, item in items:
+                # 시간 정보 검증
+                start = item.get('start', '없음')
+                end = item.get('end', '없음')
+                item_type = item.get('type', '미지정')
+                name = item.get('name', '이름없음')
+                
+                # 시간 유효성 검사
+                time_valid = "✅" if (start != '없음' and end != '없음' and start < end) else "❌"
+                
+                st.write(f"  {idx}. [{item_type}] {name} {time_valid}")
+                st.write(f"     └ 시간: {start} ~ {end}")
+                
+                # Description 확인
+                description = item.get('description', '')
+                if description:
+                    st.write(f"     └ 설명: {description[:60]}..." if len(description) > 60 else f"     └ 설명: {description}")
+                else:
+                    st.write(f"     └ 설명: (없음)")
+                
+                # Reviews 확인
+                reviews = item.get('reviews', [])
+                if reviews:
+                    st.write(f"     └ 리뷰 ({len(reviews)}개):")
+                    for rev in reviews:
+                        st.write(f"        • {rev[:70]}..." if len(rev) > 70 else f"        • {rev}")
+                else:
+                    st.write(f"     └ 리뷰: (없음)")
+        
+        # 2. 메타데이터 검증
+        st.write("#### 2️⃣ 메타데이터 검증")
+        st.write(f"**목적지:** {st.session_state.destination}")
+        st.write(f"**날짜:** {st.session_state.dates}")
+        st.write(f"**총 일수:** {st.session_state.total_days}")
+        st.write(f"**날씨:** {weather_info[:100]}..." if len(weather_info) > 100 else f"**날씨:** {weather_info}")
+        
+        # 3. 시간 순서 검증
+        st.write("#### 3️⃣ 시간 순서 검증 (각 Day별)")
+        
+        for day in sorted(day_groups.keys()):
+            items = day_groups[day]
+            # 활동만 필터 (move 제외 또는 포함)
+            activity_items = [item for _, item in items if item.get('type') != 'move']
+            
+            if activity_items:
+                times = [item.get('start', '00:00') for item in activity_items]
+                is_sorted = all(times[i] <= times[i+1] for i in range(len(times)-1))
+                status = "✅ 정렬됨" if is_sorted else "❌ 정렬 안 됨"
+                
+                st.write(f"**Day {day}:** {status}")
+                for item in activity_items:
+                    st.write(f"  - {item.get('start', '?')} ~ {item.get('end', '?')}: {item.get('name', '?')}")
+        
+        # 4. 정규화 후 상태 확인
+        st.write("#### 4️⃣ 정규화 후 상태")
+        normalized = _normalize_itinerary_for_pdf(itinerary_data, st.session_state.total_days)
+        st.write(f"**정규화 후 항목 수:** {len(normalized)}")
+        
+        # 모든 day가 정수인지 확인
+        all_days_int = all(isinstance(item.get('day'), int) for item in normalized)
+        st.write(f"**모든 day가 정수:** {'✅ Yes' if all_days_int else '❌ No'}")
+        
+        # 모든 필수 필드 확인
+        missing_fields = []
+        for idx, item in enumerate(normalized):
+            if not item.get('name'):
+                missing_fields.append(f"항목{idx}: name 없음")
+            if not item.get('type'):
+                missing_fields.append(f"항목{idx}: type 없음")
+            if 'day' not in item:
+                missing_fields.append(f"항목{idx}: day 없음")
+            if 'reviews' not in item:
+                missing_fields.append(f"항목{idx}: reviews 없음")
+        
+        if missing_fields:
+            st.write(f"**필드 누락:** ❌")
+            for field in missing_fields:
+                st.write(f"  - {field}")
+        else:
+            st.write(f"**필드 누락:** ✅ None")
+    
+    # PDF 생성
     pdf_bytes = create_itinerary_pdf(
         st.session_state.itinerary,
         st.session_state.destination,
@@ -301,13 +737,17 @@ if st.session_state.show_pdf_button:
         st.session_state.total_days,
         st.session_state.get("start_location")
     )
+    
     if pdf_bytes:
+        st.success("✅ PDF 생성 완료!")
         st.download_button(
             label="📄 여행 계획 PDF 다운로드",
             data=pdf_bytes,
             file_name=f"{st.session_state.destination}_여행계획.pdf",
             mime="application/pdf"
         )
+    else:
+        st.error("❌ PDF 생성 실패")
 
 # --- 9. 사용자 입력 처리 ---
 if user_input := st.chat_input("메시지를 입력하세요..."):

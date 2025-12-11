@@ -194,12 +194,15 @@ async def resolve_admin_region(query: str, destination: str) -> str:
 async def _search_docs(query_str: str, k: int = 20):
     """Vector DB 검색 래퍼"""
     try:
-        print(f"DEBUG: 🔍 벡터 DB 검색 시도: '{query_str}'")
-        db= load_faiss_index()
+        print(f"DEBUG: 🔍 벡터 DB 검색 시도: '{query_str}' (k={k})")
+        db = load_faiss_index()
         if db is None:
-            print("DEBUG: ❌ 벡터 DB 인스턴스 없음")
+            print("DEBUG: ❌ 벡터 DB 인스턴스 없음 (load_faiss_index returned None)")
             return []
-        return await asyncio.to_thread(db.similarity_search, query_str, k=k)
+        # If similarity_search is blocking/heavy, run in thread
+        results = await asyncio.to_thread(db.similarity_search, query_str, k=k)
+        print(f"DEBUG: 🔎 DB 검색 결과 개수: {len(results)}")
+        return results
     except Exception as e:
         print(f"DEBUG: DB 검색 실패: {e}")
         return []
@@ -207,44 +210,65 @@ async def _search_docs(query_str: str, k: int = 20):
 async def _filter_candidates(docs, target_region: str, exclude_places: List[str], category_filter: str):
     """
     메타데이터 필터링 (지역명 + 카테고리 + 제외 장소)
+    - 더 관대하게 매칭: 지역 토큰 중 하나라도 주소/이름에 포함되면 허용
+    - 모든 비교는 소문자 기준으로 수행
     """
     candidates = []
     
-    # 1. 지역명 필터 키워드 준비
-    target_parts = target_region.split()
-    refined_targets = [re.sub(r'(특별시|광역시|도|시|군|구)$', '', p) for p in target_parts]
-    if not refined_targets: refined_targets = target_parts
+    # 안전한 defaults
+    if exclude_places is None:
+        exclude_places = []
+    target_region = (target_region or "").strip()
+    
+    # 1. 지역명 필터 키워드 준비 (소문자)
+    target_parts = [p.strip() for p in target_region.split() if p.strip()]
+    refined_targets = [re.sub(r'(특별시|광역시|도|시|군|구)$', '', p).lower() for p in target_parts]
+    if not refined_targets:
+        refined_targets = [p.lower() for p in target_parts]
 
     print(f"DEBUG: ⚙️ 필터 적용 - 지역키워드:{refined_targets} / 카테고리:{category_filter}")
 
     for doc in docs:
-        name = doc.metadata.get('장소명', '이름미상')
-        address = doc.metadata.get('지역', '') or doc.metadata.get('road_address', '')
-        doc_cat = doc.metadata.get('카테고리', '')
+        name = (doc.metadata.get('장소명') or doc.metadata.get('name') or '').strip()
+        address = (doc.metadata.get('지역') or doc.metadata.get('road_address') or doc.metadata.get('address') or '').strip()
+        doc_cat = (doc.metadata.get('카테고리') or doc.metadata.get('category') or '').strip()
 
-        # A. 제외 장소 필터
-        if name in exclude_places: continue
+        name_l = name.lower()
+        address_l = address.lower()
+
+        # A. 제외 장소 필터 (이름 기반)
+        if name in exclude_places or name_l in [e.lower() for e in exclude_places]:
+            continue
 
         # B. 카테고리 필터 (엄격 + 유연)
-        if category_filter == "식당" or category_filter == "맛집":
-            if not any(x in doc_cat for x in ["식당", "맛집", "음식점"]): continue
-        elif category_filter == "카페":
-            if not any(x in doc_cat for x in ["카페", "커피"]): continue
-        elif category_filter == "관광지":
-            if not any(x in doc_cat for x in ["관광", "여행", "명소"]): continue
+        if category_filter:
+            cf = category_filter.lower()
+            if cf in ("식당", "맛집"):
+                if not any(x in doc_cat for x in ["식당", "맛집", "음식점"]):
+                    continue
+            elif cf == "카페":
+                if not any(x in doc_cat for x in ["카페", "커피"]):
+                    continue
+            elif cf == "관광지":
+                if not any(x in doc_cat for x in ["관광", "여행", "명소"]):
+                    continue
 
-        # C. 지역 텍스트 매칭 필터
+        # C. 지역 텍스트 매칭 필터 (관대하게: any token match in address OR name)
         is_match = False
         if not refined_targets:
             is_match = True
-        elif all(k in address for k in refined_targets): 
-            is_match = True
-        elif refined_targets and refined_targets[-1] in address: 
-            is_match = True
-            
+        else:
+            for token in refined_targets:
+                if not token:
+                    continue
+                if token in address_l or token in name_l:
+                    is_match = True
+                    break
+
         if is_match:
             candidates.append(doc)
             
+    print(f"DEBUG: ⚙️ 필터링 후 후보 수: {len(candidates)}")
     return candidates
 
 @tool
@@ -255,28 +279,36 @@ async def find_and_select_best_place(query: str,
                                     user_info: str = "", 
                                     category_filter: str = "") -> str:
     """
-    [핵심 도구] 최적의 장소 1곳을 반환합니다.
-    1. 선호 반영 검색 -> 2. (실패시) 선호 제외 재검색 -> 3. (필요시) 거리순 정렬
+    [핵심 도구] 최적의 장소 1곳을 반환합니다 + 리뷰 정보 포함.
     """
     print(f"\n--- [DEBUG] find_and_select_best_place 호출 ---")
     
     # 1. 지역 및 기준점 설정
     target_region = ""
-    if anchor:
-        target_region = await resolve_admin_region(anchor, destination)
-    else:
-        target_input = query if destination in query else f"{destination} {query}"
-        target_region = await resolve_admin_region(target_input, destination)
-    target_region = target_region.strip()
+    try:
+        if anchor:
+            target_region = await resolve_admin_region(anchor, destination)
+        else:
+            target_input = query if (destination and destination in query) else f"{destination} {query}".strip()
+            target_region = await resolve_admin_region(target_input, destination)
+    except Exception as e:
+        print(f"DEBUG: resolve_admin_region 실패: {e}")
+        target_region = destination or ""
+
+    target_region = (target_region or "").strip()
+    print(f"DEBUG: target_region resolved -> '{target_region}'")
 
     # 기준점(Anchor) 좌표 확보 (거리 계산용)
     center_place = anchor if anchor else target_region
     center_lat, center_lng = None, None
     if center_place:
         print(f"DEBUG: 📍 기준점 좌표 조회: '{center_place}'")
-        center_lat, center_lng = await get_coordinates(center_place)
+        try:
+            center_lat, center_lng = await get_coordinates(center_place)
+        except Exception as e:
+            print(f"DEBUG: 좌표 조회 실패: {e}")
 
-    search_query_v1 = f"{target_region} {query} {user_info} {category_filter}"
+    search_query_v1 = f"{target_region} {query} {user_info} {category_filter}".strip()
     print(f"DEBUG: 🔍 1차 검색 시도 (선호 포함): '{search_query_v1}'")
     
     docs_v1 = await _search_docs(search_query_v1, k=20)
@@ -292,7 +324,8 @@ async def find_and_select_best_place(query: str,
         
         docs_v2 = await _search_docs(search_query_v2, k=20)
         candidates = await _filter_candidates(docs_v2, target_region, exclude_places, category_filter)
-        
+        print(f"DEBUG: 🎯 2차 후보군 수: {len(candidates)}")
+
         # 2차 검색 결과가 있다면, 이 중 "가장 가까운 곳"을 찾기 위해 좌표 변환 수행
         if candidates and center_lat and center_lng:
             print("DEBUG: 📏 후보군 상위 5개 거리 계산 및 최단거리 정렬 시작")
@@ -303,7 +336,7 @@ async def find_and_select_best_place(query: str,
             
             for doc in top_n_candidates:
                 addr =  doc.metadata.get('지역') or ""
-                p_lat, p_lng = await get_coordinates(addr) # 여기서 API 호출 발생 (최대 5회)
+                p_lat, p_lng = await get_coordinates(addr)
                 
                 dist = 9999.0
                 if p_lat and p_lng:
@@ -321,7 +354,7 @@ async def find_and_select_best_place(query: str,
 
     if not candidates:
         print("DEBUG: ❌ 2차 검색까지 실패. 검색 결과 없음.")
-        return json.dumps({"name": "추천 장소 없음", "type": "정보없음", "description": "조건에 맞는 장소를 찾지 못했습니다."}, ensure_ascii=False)
+        return json.dumps({"name": "추천 장소 없음", "type": "정보없음", "description": "조건에 맞는 장소를 찾지 못했습니다.", "reviews": []}, ensure_ascii=False)
 
     best_doc = candidates[0]
     best_name = best_doc.metadata.get('장소명', '이름미상')
@@ -334,15 +367,54 @@ async def find_and_select_best_place(query: str,
         "place_data": best_doc.page_content[:400]
     })
 
+    # ✨ [새로 추가] 리뷰 데이터 추출 (metadata나 page_content에서)
+    reviews = []
+    try:
+        # 방법 1: metadata에서 직접 리뷰 추출 (있으면)
+        if 'reviews' in best_doc.metadata:
+            reviews_data = best_doc.metadata.get('reviews', [])
+            if isinstance(reviews_data, list):
+                reviews = reviews_data[:3]  # 상위 3개만 추출
+            elif isinstance(reviews_data, str):
+                # 문자열 형태라면 줄바꿈이나 구분자로 split
+                reviews = [r.strip() for r in reviews_data.split('\n') if r.strip()][:3]
+        
+        # 방법 2: page_content에서 리뷰 키워드 찾기
+        if not reviews and best_doc.page_content:
+            content = best_doc.page_content
+            # 리뷰 섹션이 있는지 확인 (예: "리뷰:" 이후 텍스트)
+            if '리뷰' in content or 'review' in content.lower():
+                # 간단하게 리뷰 섹션 후 첫 2-3문장 추출
+                lines = content.split('\n')
+                review_start = False
+                temp_reviews = []
+                for line in lines:
+                    if '리뷰' in line or 'review' in line.lower():
+                        review_start = True
+                        continue
+                    if review_start and line.strip():
+                        temp_reviews.append(line.strip())
+                        if len(temp_reviews) >= 2:
+                            break
+                reviews = temp_reviews
+    except Exception as e:
+        print(f"DEBUG: 리뷰 추출 중 에러: {e}")
+        reviews = []
+
+    # 리뷰가 없으면 빈 리스트로 설정
+    if not reviews:
+        reviews = []
+
     result_data = {
         "name": best_name,
         "type": best_doc.metadata.get('카테고리', '장소명'), 
         "description": description.strip(),
         "address": best_address,
+        "reviews": reviews,  # ✨ [새로 추가] 리뷰 필드
         "coordinates": None 
     }
     
-    print(f"✅ 최종 추천: {best_name}")
+    print(f"✅ 최종 추천: {best_name} / 리뷰 개수: {len(reviews)}")
     return json.dumps(result_data, ensure_ascii=False)
 
 
