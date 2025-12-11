@@ -1,0 +1,773 @@
+{
+  "search_results": {
+    "attempts": [
+      {
+        "destination": "서울특별시 강남구",
+        "query": "가족와 가기 좋은 서울특별시 강남구 추천",
+        "returned_name": "스머프 매직 포레스트 강남점",
+        "exists_in_db": true,
+        "best_match_name": "스머프 매직 포레스트 강남점",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "스머프 매직 포레스트 강남점",
+            "score": 1.0
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 12.164016008377075,
+        "raw_result": {
+          "name": "스머프 매직 포레스트 강남점",
+          "type": "관광지",
+          "description": "스머프 매직 포레스트 강남점은 아이와 함께 특별한 방탈출 경험을 즐기기에 아주 좋아요. 온 가족이 신나는 추억을 만들며 즐거운 시간을 보낼 수 있어요.",
+          "address": "서울 강남구",
+          "reviews": [],
+          "coordinates": null
+        }
+      },
+      {
+        "destination": "서울특별시 강남구",
+        "query": "서울특별시 강남구에서 가족에게 인기있는 장소 추천",
+        "returned_name": "스머프 매직 포레스트 강남점",
+        "exists_in_db": true,
+        "best_match_name": "스머프 매직 포레스트 강남점",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "스머프 매직 포레스트 강남점",
+            "score": 1.0
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 10.285433053970337,
+        "raw_result": {
+          "name": "스머프 매직 포레스트 강남점",
+          "type": "관광지",
+          "description": "스머프 매직 포레스트 강남점은 아이와 함께 특별한 방탈출 경험을 즐기기에 아주 좋아요. 온 가족이 신나는 추억을 만들며 즐거운 시간을 보낼 수 있어요.",
+          "address": "서울 강남구",
+          "reviews": [],
+          "coordinates": null
+        }
+      },
+      {
+        "destination": "서울특별시 강남구",
+        "query": "서울특별시 강남구 가족 추천 장소",
+        "returned_name": "스머프 매직 포레스트 강남점",
+        "exists_in_db": true,
+        "best_match_name": "스머프 매직 포레스트 강남점",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "스머프 매직 포레스트 강남점",
+            "score": 1.0
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 8.757360219955444,
+        "raw_result": {
+          "name": "스머프 매직 포레스트 강남점",
+          "type": "관광지",
+          "description": "스머프 매직 포레스트 강남점은 아이와 함께 특별한 방탈출 경험을 즐기기에 아주 좋아요. 온 가족이 신나는 추억을 만들며 즐거운 시간을 보낼 수 있어요.",
+          "address": "서울 강남구",
+          "reviews": [],
+          "coordinates": null
+        }
+      },
+      {
+        "destination": "서울특별시 강남구",
+        "query": "혼자와 가기 좋은 서울특별시 강남구 추천",
+        "returned_name": "광나루 한강공원",
+        "exists_in_db": true,
+        "best_match_name": "광나루 한강공원",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "광나루 한강공원",
+            "score": 1.0
+          },
+          {
+            "name": "광나루한강공원",
+            "score": 1.0
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 5.791381120681763,
+        "raw_result": {
+          "name": "광나루 한강공원",
+          "type": "관광지",
+          "description": "광나루 한강공원은 혼자만의 여유로운 시간을 보내며 산책하기에 더없이 좋은 곳이에요.",
+          "address": "서울 강동구",
+          "reviews": [],
+          "coordinates": null
+        }
+      },
+      {
+        "destination": "서울특별시 종로구 인사동",
+        "query": "가족와 가기 좋은 서울특별시 종로구 인사동 추천",
+        "returned_name": "창경궁",
+        "exists_in_db": true,
+        "best_match_name": "창경궁",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "창경궁",
+            "score": 1.0
+          },
+          {
+            "name": "창덕궁",
+            "score": 0.667
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 6.926456689834595,
+        "raw_result": {
+          "name": "창경궁",
+          "type": "관광지",
+          "description": "서울 종로구에 위치한 창경궁은 가족들과 아이들이 함께 여유롭게 산책하며 좋은 추억을 만들기에 더없이 좋은 곳이에요.",
+          "address": "서울 종로구",
+          "reviews": [],
+          "coordinates": null
+        }
+      },
+      {
+        "destination": "서울특별시 종로구 인사동",
+        "query": "서울특별시 종로구 인사동에서 가족에게 인기있는 장소 추천",
+        "returned_name": "창경궁",
+        "exists_in_db": true,
+        "best_match_name": "창경궁",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "창경궁",
+            "score": 1.0
+          },
+          {
+            "name": "창덕궁",
+            "score": 0.667
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 7.240694046020508,
+        "raw_result": {
+          "name": "창경궁",
+          "type": "관광지",
+          "description": "서울 종로구에 위치한 창경궁은 가족들과 아이들이 함께 여유롭게 산책하며 좋은 추억을 만들기에 더없이 좋은 곳이에요.",
+          "address": "서울 종로구",
+          "reviews": [],
+          "coordinates": null
+        }
+      },
+      {
+        "destination": "서울특별시 종로구 인사동",
+        "query": "서울특별시 종로구 인사동 가족 추천 장소",
+        "returned_name": "창경궁",
+        "exists_in_db": true,
+        "best_match_name": "창경궁",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "창경궁",
+            "score": 1.0
+          },
+          {
+            "name": "창덕궁",
+            "score": 0.667
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 7.8545918464660645,
+        "raw_result": {
+          "name": "창경궁",
+          "type": "관광지",
+          "description": "가족과 아이와 함께 여유로운 산책을 즐기고 싶다면, 창경궁은 정말 좋은 곳이에요.",
+          "address": "서울 종로구",
+          "reviews": [],
+          "coordinates": null
+        }
+      },
+      {
+        "destination": "서울특별시 종로구 인사동",
+        "query": "혼자와 가기 좋은 서울특별시 종로구 인사동 추천",
+        "returned_name": "쌈지길",
+        "exists_in_db": true,
+        "best_match_name": "쌈지길",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "쌈지길",
+            "score": 1.0
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 10.508761882781982,
+        "raw_result": {
+          "name": "쌈지길",
+          "type": "관광지",
+          "description": "쌈지길은 인사동의 고유한 정취를 느끼며 오래도록 남아주길 바라는 사용자님께 여전히 소중한 매력을 선사하는 곳이에요.",
+          "address": "서울 종로구",
+          "reviews": [],
+          "coordinates": null
+        }
+      },
+      {
+        "destination": "부산광역시 해운대구",
+        "query": "가족와 가기 좋은 부산광역시 해운대구 추천",
+        "returned_name": "해운대해수욕장",
+        "exists_in_db": true,
+        "best_match_name": "해운대해수욕장",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "해운대해수욕장",
+            "score": 1.0
+          },
+          {
+            "name": "송도해수욕장",
+            "score": 0.615
+          },
+          {
+            "name": "해운대수목원",
+            "score": 0.615
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 9.509946823120117,
+        "raw_result": {
+          "name": "해운대해수욕장",
+          "type": "관광지",
+          "description": "해운대해수욕장은 경사진 파도와 밤에도 밝은 해변이 매력적이며, 바다에 둥둥 떠있는 동안 머릿속 잡생각이 싸악 사라지는 최고의 행복을 느낄 수 있어 좋아요.",
+          "address": "부산 해운대구",
+          "reviews": [],
+          "coordinates": null
+        }
+      },
+      {
+        "destination": "부산광역시 해운대구",
+        "query": "부산광역시 해운대구에서 가족에게 인기있는 장소 추천",
+        "returned_name": "해운대해수욕장",
+        "exists_in_db": true,
+        "best_match_name": "해운대해수욕장",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "해운대해수욕장",
+            "score": 1.0
+          },
+          {
+            "name": "송도해수욕장",
+            "score": 0.615
+          },
+          {
+            "name": "해운대수목원",
+            "score": 0.615
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 10.397314071655273,
+        "raw_result": {
+          "name": "해운대해수욕장",
+          "type": "관광지",
+          "description": "해운대해수욕장은 해달처럼 바다에 둥둥 떠다니며 머릿속 잡생각을 잊고 온전히 행복을 느낄 수 있는 곳이에요. 밤에도 밝고 경사진 파도가 매력적이어서 더욱 특별한 추억을 만들 수 있어요.",
+          "address": "부산 해운대구",
+          "reviews": [],
+          "coordinates": null
+        }
+      },
+      {
+        "destination": "부산광역시 해운대구",
+        "query": "부산광역시 해운대구 가족 추천 장소",
+        "returned_name": "해운대해수욕장",
+        "exists_in_db": true,
+        "best_match_name": "해운대해수욕장",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "해운대해수욕장",
+            "score": 1.0
+          },
+          {
+            "name": "송도해수욕장",
+            "score": 0.615
+          },
+          {
+            "name": "해운대수목원",
+            "score": 0.615
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 8.984474897384644,
+        "raw_result": {
+          "name": "해운대해수욕장",
+          "type": "관광지",
+          "description": "해운대해수욕장은 경사진 파도와 밤에도 밝은 해변이 매력적이며, 바다에 둥둥 떠있는 동안 머릿속 잡생각이 싸악 사라지는 최고의 행복을 느낄 수 있어 좋아요.",
+          "address": "부산 해운대구",
+          "reviews": [],
+          "coordinates": null
+        }
+      },
+      {
+        "destination": "부산광역시 해운대구",
+        "query": "혼자와 가기 좋은 부산광역시 해운대구 추천",
+        "returned_name": "해운대해수욕장",
+        "exists_in_db": true,
+        "best_match_name": "해운대해수욕장",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "해운대해수욕장",
+            "score": 1.0
+          },
+          {
+            "name": "송도해수욕장",
+            "score": 0.615
+          },
+          {
+            "name": "해운대수목원",
+            "score": 0.615
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 9.591506242752075,
+        "raw_result": {
+          "name": "해운대해수욕장",
+          "type": "관광지",
+          "description": "해운대해수욕장은 경사진 파도와 밤에도 밝은 해변이 매력적이며, 바다에 둥둥 떠있는 동안 머릿속 잡생각이 싸악 사라지는 최고의 행복을 느낄 수 있어 좋아요.",
+          "address": "부산 해운대구",
+          "reviews": [],
+          "coordinates": null
+        }
+      },
+      {
+        "destination": "부산광역시 수영구 광안리",
+        "query": "가족와 가기 좋은 부산광역시 수영구 광안리 추천",
+        "returned_name": "광안리해수욕장",
+        "exists_in_db": true,
+        "best_match_name": "광안리해수욕장",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "광안리해수욕장",
+            "score": 1.0
+          },
+          {
+            "name": "광암해수욕장",
+            "score": 0.769
+          },
+          {
+            "name": "광안리만남의광장",
+            "score": 0.533
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 10.103348016738892,
+        "raw_result": {
+          "name": "광안리해수욕장",
+          "type": "관광지",
+          "description": "광안리해수욕장은 시원한 바다에서 수영하고 예쁜 조개를 주우며 자연과 교감하는 즐거움을 느낄 수 있어 정말 좋은 곳이에요.",
+          "address": "부산 수영구",
+          "reviews": [],
+          "coordinates": null
+        }
+      },
+      {
+        "destination": "부산광역시 수영구 광안리",
+        "query": "부산광역시 수영구 광안리에서 가족에게 인기있는 장소 추천",
+        "returned_name": "광안리해수욕장",
+        "exists_in_db": true,
+        "best_match_name": "광안리해수욕장",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "광안리해수욕장",
+            "score": 1.0
+          },
+          {
+            "name": "광암해수욕장",
+            "score": 0.769
+          },
+          {
+            "name": "광안리만남의광장",
+            "score": 0.533
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 11.636037826538086,
+        "raw_result": {
+          "name": "광안리해수욕장",
+          "type": "관광지",
+          "description": "숙소가 바로 앞이라 편리하게 바다를 즐길 수 있었고, 수영과 예쁜 조개를 줍는 등 자연을 만끽하며 '너무 좋았다'고 느꼈던 것처럼, 광안리해수욕장은 당신에게도 편안하고 행복한 추억을 선사하기에 더없이 좋은 곳이에요.",
+          "address": "부산 수영구",
+          "reviews": [],
+          "coordinates": null
+        }
+      },
+      {
+        "destination": "부산광역시 수영구 광안리",
+        "query": "부산광역시 수영구 광안리 가족 추천 장소",
+        "returned_name": "광안리해수욕장",
+        "exists_in_db": true,
+        "best_match_name": "광안리해수욕장",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "광안리해수욕장",
+            "score": 1.0
+          },
+          {
+            "name": "광암해수욕장",
+            "score": 0.769
+          },
+          {
+            "name": "광안리만남의광장",
+            "score": 0.533
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 12.76361608505249,
+        "raw_result": {
+          "name": "광안리해수욕장",
+          "type": "관광지",
+          "description": "숙소가 바로 앞이라 편리하게 바다를 즐길 수 있었고, 수영과 예쁜 조개를 줍는 등 자연을 만끽하며 '너무 좋았다'고 느꼈던 것처럼, 광안리해수욕장은 당신에게도 편안하고 행복한 추억을 선사하기에 더없이 좋은 곳이에요.",
+          "address": "부산 수영구",
+          "reviews": [],
+          "coordinates": null
+        }
+      },
+      {
+        "destination": "부산광역시 수영구 광안리",
+        "query": "혼자와 가기 좋은 부산광역시 수영구 광안리 추천",
+        "returned_name": "광안리카페거리",
+        "exists_in_db": true,
+        "best_match_name": "광안리카페거리",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "광안리카페거리",
+            "score": 1.0
+          },
+          {
+            "name": "카페보리",
+            "score": 0.444
+          },
+          {
+            "name": "페로어페로 광안리점",
+            "score": 0.375
+          },
+          {
+            "name": "더벤티 광양창덕점",
+            "score": 0.143
+          },
+          {
+            "name": "메가MGC커피 광양광영점",
+            "score": 0.133
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 6.29194188117981,
+        "raw_result": {
+          "name": "광안리카페거리",
+          "type": "관광지",
+          "description": "낭만의 도시 부산 광안리에 위치한 광안리카페거리는 아름다운 풍경을 따라 걷기 좋고, LED 그네 영상까지 즐길 수 있어 더욱 매력적이에요.",
+          "address": "부산 수영구",
+          "reviews": [],
+          "coordinates": null
+        }
+      },
+      {
+        "destination": "대구광역시 중구 동성로",
+        "query": "가족와 가기 좋은 대구광역시 중구 동성로 추천",
+        "returned_name": "패밀리테마파크",
+        "exists_in_db": true,
+        "best_match_name": "패밀리테마파크",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "패밀리테마파크",
+            "score": 1.0
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 8.25798511505127,
+        "raw_result": {
+          "name": "패밀리테마파크",
+          "type": "관광지",
+          "description": "아이들이 날씨 걱정 없이 신나게 즐길 거리가 가득하고, 무료 입장으로 부담 없이 방문할 수 있어 가족 나들이에 정말 좋은 곳이에요.",
+          "address": "서울 중구",
+          "reviews": [],
+          "coordinates": null
+        }
+      },
+      {
+        "destination": "대구광역시 중구 동성로",
+        "query": "대구광역시 중구 동성로에서 가족에게 인기있는 장소 추천",
+        "returned_name": "패밀리테마파크",
+        "exists_in_db": true,
+        "best_match_name": "패밀리테마파크",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "패밀리테마파크",
+            "score": 1.0
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 12.259681940078735,
+        "raw_result": {
+          "name": "패밀리테마파크",
+          "type": "관광지",
+          "description": "패밀리테마파크는 아이들을 위한 과학실, 오락실, 샌드파크 등 알찬 즐길 거리가 많아 가족 모두에게 즐거운 시간을 선사하기 좋아요. 거대 꿈돌이와 느린 우체통 같은 특별한 요소들도 만날 수 있어요.",
+          "address": "서울 중구",
+          "reviews": [],
+          "coordinates": null
+        }
+      },
+      {
+        "destination": "대구광역시 중구 동성로",
+        "query": "대구광역시 중구 동성로 가족 추천 장소",
+        "returned_name": "대구동성로 관광안내소",
+        "exists_in_db": true,
+        "best_match_name": "대구동성로 관광안내소",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "대구동성로 관광안내소",
+            "score": 1.0
+          },
+          {
+            "name": "동성로28 아트스퀘어",
+            "score": 0.364
+          },
+          {
+            "name": "토이빌리지 대구혁신점",
+            "score": 0.2
+          },
+          {
+            "name": "동촌유원지",
+            "score": 0.133
+          },
+          {
+            "name": "강정보디아크광장",
+            "score": 0.111
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 6.5171799659729,
+        "raw_result": {
+          "name": "대구동성로 관광안내소",
+          "type": "관광지",
+          "description": "대구동성로 관광안내소는 정말 친절해서 어떤 문의든 편안하게 해결할 수 있어요. 필요한 자료가 없어도 어디서 구할 수 있는지까지 알려주는 세심한 서비스에 매우 만족하실 거예요.",
+          "address": "대구 중구",
+          "reviews": [],
+          "coordinates": null
+        }
+      },
+      {
+        "destination": "대구광역시 중구 동성로",
+        "query": "혼자와 가기 좋은 대구광역시 중구 동성로 추천",
+        "returned_name": "대구동성로 관광안내소",
+        "exists_in_db": true,
+        "best_match_name": "대구동성로 관광안내소",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "대구동성로 관광안내소",
+            "score": 1.0
+          },
+          {
+            "name": "동성로28 아트스퀘어",
+            "score": 0.364
+          },
+          {
+            "name": "토이빌리지 대구혁신점",
+            "score": 0.2
+          },
+          {
+            "name": "동촌유원지",
+            "score": 0.133
+          },
+          {
+            "name": "강정보디아크광장",
+            "score": 0.111
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 6.304647922515869,
+        "raw_result": {
+          "name": "대구동성로 관광안내소",
+          "type": "관광지",
+          "description": "대구동성로 관광안내소는 정말 친절해서 어떤 문의든 편안하게 해결할 수 있어요. 필요한 자료가 없어도 어디서 구할 수 있는지까지 알려주는 세심한 서비스에 매우 만족하실 거예요.",
+          "address": "대구 중구",
+          "reviews": [],
+          "coordinates": null
+        }
+      },
+      {
+        "destination": "광주광역시 동구 충장로",
+        "query": "가족와 가기 좋은 광주광역시 동구 충장로 추천",
+        "returned_name": "충장로거리",
+        "exists_in_db": true,
+        "best_match_name": "충장로거리",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "충장로거리",
+            "score": 1.0
+          },
+          {
+            "name": "구로거리공원",
+            "score": 0.545
+          },
+          {
+            "name": "충효당",
+            "score": 0.286
+          },
+          {
+            "name": "장군식당",
+            "score": 0.25
+          },
+          {
+            "name": "복서울해장국",
+            "score": 0.2
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 8.045841932296753,
+        "raw_result": {
+          "name": "충장로거리",
+          "type": "관광지",
+          "description": "충장로거리는 인생네컷샵과 맛있는 마라탕집처럼 초등학생인 사용자에게 특히 즐거운 볼거리와 먹거리가 가득해서 좋아요.",
+          "address": "광주 동구",
+          "reviews": [],
+          "coordinates": null
+        }
+      },
+      {
+        "destination": "광주광역시 동구 충장로",
+        "query": "광주광역시 동구 충장로에서 가족에게 인기있는 장소 추천",
+        "returned_name": "충장로거리",
+        "exists_in_db": true,
+        "best_match_name": "충장로거리",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "충장로거리",
+            "score": 1.0
+          },
+          {
+            "name": "구로거리공원",
+            "score": 0.545
+          },
+          {
+            "name": "충효당",
+            "score": 0.286
+          },
+          {
+            "name": "장군식당",
+            "score": 0.25
+          },
+          {
+            "name": "복서울해장국",
+            "score": 0.2
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 8.360446214675903,
+        "raw_result": {
+          "name": "충장로거리",
+          "type": "관광지",
+          "description": "충장로거리는 광주의 명동답게 인생네컷샵과 맛있는 마라탕집 등 즐길 거리가 많아 신나는 추억을 만들기에 아주 좋아요.",
+          "address": "광주 동구",
+          "reviews": [],
+          "coordinates": null
+        }
+      },
+      {
+        "destination": "광주광역시 동구 충장로",
+        "query": "광주광역시 동구 충장로 가족 추천 장소",
+        "returned_name": "충장로거리",
+        "exists_in_db": true,
+        "best_match_name": "충장로거리",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "충장로거리",
+            "score": 1.0
+          },
+          {
+            "name": "구로거리공원",
+            "score": 0.545
+          },
+          {
+            "name": "충효당",
+            "score": 0.286
+          },
+          {
+            "name": "장군식당",
+            "score": 0.25
+          },
+          {
+            "name": "복서울해장국",
+            "score": 0.2
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 9.791845321655273,
+        "raw_result": {
+          "name": "충장로거리",
+          "type": "관광지",
+          "description": "충장로거리는 광주의 명동답게 인생네컷샵과 맛있는 마라탕집 등 즐길 거리가 많아 신나는 추억을 만들기에 아주 좋아요.",
+          "address": "광주 동구",
+          "reviews": [],
+          "coordinates": null
+        }
+      },
+      {
+        "destination": "광주광역시 동구 충장로",
+        "query": "혼자와 가기 좋은 광주광역시 동구 충장로 추천",
+        "returned_name": "충장로거리",
+        "exists_in_db": true,
+        "best_match_name": "충장로거리",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "충장로거리",
+            "score": 1.0
+          },
+          {
+            "name": "구로거리공원",
+            "score": 0.545
+          },
+          {
+            "name": "충효당",
+            "score": 0.286
+          },
+          {
+            "name": "장군식당",
+            "score": 0.25
+          },
+          {
+            "name": "복서울해장국",
+            "score": 0.2
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 8.463322877883911,
+        "raw_result": {
+          "name": "충장로거리",
+          "type": "관광지",
+          "description": "충장로거리는 광주의 명동답게 인생네컷샵과 맛있는 마라탕집 등 즐길 거리가 많아 신나는 추억을 만들기에 아주 좋아요.",
+          "address": "광주 동구",
+          "reviews": [],
+          "coordinates": null
+        }
+      }
+    ],
+    "summary": {
+      "total_attempts": 24,
+      "total_hallucinations": 0,
+      "hallucination_rate": 0.0,
+      "avg_latency_sec": 9.033659666776657
+    }
+  },
+  "timestamp": 1765486181.6316311
+}
