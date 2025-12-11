@@ -18,7 +18,7 @@ if not st.session_state.get("preferences_collected", False):
     st.stop()
 
 # --- PDF 생성 함수 ---
-def create_itinerary_pdf(itinerary, destination, dates, weather, final_routes, total_days, route_details=None):
+def create_itinerary_pdf(itinerary, destination, dates, weather, final_routes, total_days, route_details=None, start_location=None):
     """세션 상태 정보를 바탕으로 여행 계획 PDF를 생성합니다. (경로 정보 포함)"""
     pdf = FPDF()
     pdf.add_page()
@@ -26,7 +26,7 @@ def create_itinerary_pdf(itinerary, destination, dates, weather, final_routes, t
     # 폰트 설정
     try:
         pdf.add_font('NanumGothic', '', 'NanumGothic.ttf', uni=True)
-        pdf.add_font('NanumGothic', 'B', 'NanumGothicBold.ttf', uni=True) 
+        pdf.add_font('NanumGothic', 'B', 'NanumGothicBold.ttf', uni=True)
         pdf.set_font('NanumGothic', '', 12)
     except RuntimeError:
         print("PDF ERROR: 폰트 파일을 찾을 수 없습니다.")
@@ -37,6 +37,9 @@ def create_itinerary_pdf(itinerary, destination, dates, weather, final_routes, t
     pdf.cell(0, 20, f"{destination} 여행 계획", ln=True, align='C')
     pdf.set_font_size(16)
     pdf.cell(0, 10, f"기간: {dates}", ln=True, align='C')
+    if start_location:
+        pdf.set_font_size(12)
+        pdf.cell(0, 8, f"출발지/숙소: {start_location}", ln=True, align='C')
     pdf.ln(20)
 
     # 2. 일차별 계획
@@ -126,9 +129,11 @@ st.caption(f"'{st.session_state.get('destination', '알 수 없는 목적지')}'
 # --- 좌측 사이드바 가이드 추가 ---
 with st.sidebar:
     # ===== 1. 현재 여행 정보 =====
-    st.header("현재 여행 정보")
+    st.header("📍 현재 여행 정보")
 
     st.markdown(f"**목적지:** {st.session_state.get('destination', '-')}")
+    if st.session_state.get('start_location'):
+        st.markdown(f"**출발지:** {st.session_state.get('start_location', '-')}")
     st.markdown(f"**여행 기간:** {st.session_state.get('dates', '-')}")
 
     st.markdown("---")
@@ -172,22 +177,28 @@ if "total_days" not in st.session_state: st.session_state.total_days = 1
 if "activity_level" not in st.session_state: st.session_state.activity_level = 3
 if "current_weather" not in st.session_state: st.session_state.current_weather = ""
 if "destination" not in st.session_state: st.session_state.destination = ""
+if "start_location" not in st.session_state: st.session_state.start_location = ""
 if "dates" not in st.session_state: st.session_state.dates = ""
 if "preference" not in st.session_state: st.session_state.preference = ""
 if "show_pdf_button" not in st.session_state: st.session_state.show_pdf_button = False
 
 # --- 4. 자동 첫 메시지 생성 ---
 if not st.session_state.messages:
+    # 출발지 정보가 있으면 포함
+    start_location_text = ""
+    if st.session_state.start_location:
+        start_location_text = f"\n    - **출발지/숙소:** {st.session_state.start_location}"
+
     initial_prompt = f"""
     안녕하세요! 방금 입력한 정보를 바탕으로 여행 계획을 시작해주세요.
 
     ### 입력된 여행 정보 요약
-    - **목적지:** {st.session_state.destination}
+    - **목적지:** {st.session_state.destination}{start_location_text}
     - **여행 기간:** {st.session_state.dates} (총 {st.session_state.total_days}일)
     - **하루 활동량(목표 장소 수):** {st.session_state.activity_level}곳
     - **나의 여행 스타일 및 요청사항:**
     {st.session_state.preference}
-    
+
     이제 위 정보를 바탕으로 1일차 계획 추천을 시작해주세요.
     """
     st.session_state.messages.append(HumanMessage(content=initial_prompt))
@@ -398,7 +409,8 @@ if st.session_state.get("show_pdf_button", False):
         weather=st.session_state.current_weather,
         final_routes=final_routes_text,
         total_days=st.session_state.total_days,
-        route_details=st.session_state.get("route_details") # 👈 데이터 전달
+        route_details=st.session_state.get("route_details"),
+        start_location=st.session_state.get("start_location")
     )
     
     if pdf_bytes:
