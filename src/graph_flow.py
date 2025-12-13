@@ -273,45 +273,48 @@ async def call_tools_node(state: AgentState):
             if raw_json_output:
                 if tool_name == "find_and_select_best_place":
                     try:
-                        item_json = json.loads(raw_json_output)
-                        
-                        if item_json.get('name') == "추천 장소 없음":
-                            print("DEBUG: ⚠️ 검색 실패 - 일정 추가 안 함")
-                        else:
-                            # [덮어쓰기 로직]
-                            if new_itinerary:
-                                last_item = new_itinerary[-1]
-                                # 날짜와 카테고리가 같으면 교체 시도
-                                if (item_json.get('day', 1) == last_item.get('day', 1) and 
-                                    is_same_category(item_json.get('type'), last_item.get('type'))):
-                                    
-                                    if item_json.get('name') == last_item.get('name'):
-                                        print(f"DEBUG: ⏭️ 중복 장소 무시")
-                                    else:
-                                        print(f"DEBUG: 🔄 '{last_item['name']}' -> '{item_json['name']}' 교체")
-                                        new_itinerary.pop()
-                                        new_itinerary.append(item_json)
-                                        new_anchor = item_json.get('name')
-                                        continue 
-
-                            # 일반 추가
-                            if not any(x.get('name') == item_json.get('name') for x in new_itinerary):
-                                current_places = [i for i in new_itinerary if i.get('type') != 'move']
-                                day_to_add = 1
-                                if current_places:
-                                    day_to_add = current_places[-1].get('day', 1)
-                                item_json['day'] = day_to_add
-                                new_itinerary.append(item_json)
-                                new_anchor = item_json.get('name')
+                        if tool_name == "find_and_select_best_place":
+                            try:
+                                # [수정 1] 변수명 오타 수정 (output -> raw_json_output)
+                                item_json = json.loads(raw_json_output)
                                 
-                    except Exception as e: pass
+                                # [HEAD의 핵심 로직 유지] 중복 체크 및 엄격한 Day 할당
+                                if not any(x.get('name') == item_json.get('name') for x in new_itinerary):
+                                    current_places = [i for i in new_itinerary if i.get('type') != 'move']
+                                    place_count = len(current_places)
+                                    total_days = state.get('total_days', 1)
 
-                elif tool_name in ["delete_place", "replace_place"]:
-                    try:
-                        action_data = json.loads(raw_json_output)
-                        target = action_data.get('place_name') or action_data.get('old')
-                        if target:
-                            new_itinerary = [i for i in new_itinerary if target not in i.get('name', '')]
+                                    if place_count < 4:
+                                        # Day 1: 처음 4곳
+                                        item_json['day'] = 1
+                                    else:
+                                        # Day 2부터: (전체 - Day1의 4곳) ÷ 5 + 2
+                                        remaining = place_count - 4
+                                        calculated_day = 2 + (remaining // 5)
+                                        item_json['day'] = min(calculated_day, total_days)
+
+                                    print(f"DEBUG: 장소 추가 - {item_json.get('name')} → Day {item_json['day']} (현재 {place_count+1}번째 장소)")
+
+                                    new_itinerary.append(item_json)
+                                    new_anchor = item_json.get('name')
+                            except Exception as e: pass
+
+                        # [수정 2] Incoming Change에서 누락된 도구 핸들러 복구
+                        elif tool_name in ["delete_place", "replace_place"]:
+                            try:
+                                action_data = json.loads(raw_json_output)
+                                target = action_data.get('place_name') or action_data.get('old')
+                                if target:
+                                    new_itinerary = [i for i in new_itinerary if target not in i.get('name', '')]
+                            except: pass
+
+                        elif tool_name == "plan_itinerary_timeline":
+                            try:
+                                new_itinerary = json.loads(raw_json_output)
+                            except: pass
+                        
+                        elif tool_name == "confirm_and_download_pdf":
+                            show_pdf = True
                     except: pass
 
                 elif tool_name == "plan_itinerary_timeline":

@@ -1,0 +1,347 @@
+{
+  "search_results": {
+    "attempts": [
+      {
+        "destination": "서울특별자치시 강남구",
+        "keyword": "가족",
+        "query": "가족와 가기 좋은 서울특별자치시 강남구 추천",
+        "returned_name": "스머프 매직 포레스트 강남점",
+        "exists_in_db": true,
+        "best_match_name": "스머프 매직 포레스트 강남점",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "스머프 매직 포레스트 강남점",
+            "score": 1.0
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 10.010141849517822,
+        "raw_result": {
+          "name": "스머프 매직 포레스트 강남점",
+          "type": "관광지",
+          "description": "스머프 매직 포레스트 강남점은 아이와 함께 특별한 방탈출 경험을 즐기기에 아주 좋아요. 온 가족이 신나는 추억을 만들며 즐거운 시간을 보낼 수 있어요.",
+          "address": "서울 강남구",
+          "reviews": [],
+          "coordinates": null
+        }
+      },
+      {
+        "destination": "서울특별자치시 강남구",
+        "keyword": "혼자",
+        "query": "혼자와 가기 좋은 서울특별자치시 강남구 추천",
+        "returned_name": "광나루 한강공원",
+        "exists_in_db": true,
+        "best_match_name": "광나루 한강공원",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "광나루 한강공원",
+            "score": 1.0
+          },
+          {
+            "name": "광나루한강공원",
+            "score": 0.56
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 7.771729230880737,
+        "raw_result": {
+          "name": "광나루 한강공원",
+          "type": "관광지",
+          "description": "광나루 한강공원은 서울 강동구에 위치해 있어, 혼자서도 여유롭게 산책하며 힐링하기에 정말 좋아요.",
+          "address": "서울 강동구",
+          "reviews": [],
+          "coordinates": null
+        }
+      },
+      {
+        "destination": "서울특별자치시 강남구",
+        "keyword": "커플",
+        "query": "커플와 가기 좋은 서울특별자치시 강남구 추천",
+        "returned_name": "도산공원",
+        "exists_in_db": true,
+        "best_match_name": "도산공원",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "도산공원",
+            "score": 1.0
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 10.03378701210022,
+        "raw_result": {
+          "name": "도산공원",
+          "type": "관광지",
+          "description": "도산공원은 아름다운 경치를 보며 산책하기 좋고, 커플 데이트 장소로도 완벽해요. 도산 안창호 선생님의 역사와 전통까지 느낄 수 있어 더욱 의미 있는 시간을 보낼 수 있어 좋아요.",
+          "address": "서울 강남구",
+          "reviews": [],
+          "coordinates": null
+        }
+      },
+      {
+        "destination": "서울특별자치시 강남구",
+        "keyword": "친구",
+        "query": "친구와 가기 좋은 서울특별자치시 강남구 추천",
+        "returned_name": "가로수길",
+        "exists_in_db": true,
+        "best_match_name": "가로수길",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "가로수길",
+            "score": 1.0
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 6.7959558963775635,
+        "raw_result": {
+          "name": "가로수길",
+          "type": "관광지",
+          "description": "가로수길은 맛있는 음식과 좋은 분위기 덕분에 친구와 함께 즐거운 시간을 보내기에 완벽한 곳이에요.",
+          "address": "서울 강남구",
+          "reviews": [],
+          "coordinates": null
+        }
+      },
+      {
+        "destination": "서울특별자치시 강남구",
+        "keyword": "데이트",
+        "query": "데이트와 가기 좋은 서울특별자치시 강남구 추천",
+        "returned_name": "가로수길",
+        "exists_in_db": true,
+        "best_match_name": "가로수길",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "가로수길",
+            "score": 1.0
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 7.749942064285278,
+        "raw_result": {
+          "name": "가로수길",
+          "type": "관광지",
+          "description": "서울의 다양한 핫플레이스를 즐기고 싶다면, 가로수길은 트렌디한 카페와 맛집이 가득해 방문하기 정말 좋아요.",
+          "address": "서울 강남구",
+          "reviews": [],
+          "coordinates": null
+        }
+      },
+      {
+        "destination": "광주광역시 동구 충장로",
+        "keyword": "가족",
+        "query": "가족와 가기 좋은 광주광역시 동구 충장로 추천",
+        "returned_name": "충장로거리",
+        "exists_in_db": true,
+        "best_match_name": "충장로거리",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "충장로거리",
+            "score": 1.0
+          },
+          {
+            "name": "구로거리공원",
+            "score": 0.327
+          },
+          {
+            "name": "충효당",
+            "score": 0.15
+          },
+          {
+            "name": "장군식당",
+            "score": 0.133
+          },
+          {
+            "name": "복서울해장국",
+            "score": 0.109
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 10.006013870239258,
+        "raw_result": {
+          "name": "충장로거리",
+          "type": "관광지",
+          "description": "충장로거리는 광주의 명동답게 인생네컷샵과 맛있는 마라탕집 등 즐길 거리가 많아 신나는 추억을 만들기에 아주 좋아요.",
+          "address": "광주 동구",
+          "reviews": [],
+          "coordinates": null
+        }
+      },
+      {
+        "destination": "광주광역시 동구 충장로",
+        "keyword": "혼자",
+        "query": "혼자와 가기 좋은 광주광역시 동구 충장로 추천",
+        "returned_name": "충장로거리",
+        "exists_in_db": true,
+        "best_match_name": "충장로거리",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "충장로거리",
+            "score": 1.0
+          },
+          {
+            "name": "구로거리공원",
+            "score": 0.327
+          },
+          {
+            "name": "충효당",
+            "score": 0.15
+          },
+          {
+            "name": "장군식당",
+            "score": 0.133
+          },
+          {
+            "name": "복서울해장국",
+            "score": 0.109
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 13.39113712310791,
+        "raw_result": {
+          "name": "충장로거리",
+          "type": "관광지",
+          "description": "충장로거리는 광주의 명동답게 인생네컷샵과 맛있는 마라탕집 등 즐길 거리가 많아 신나는 추억을 만들기에 아주 좋아요.",
+          "address": "광주 동구",
+          "reviews": [],
+          "coordinates": null
+        }
+      },
+      {
+        "destination": "광주광역시 동구 충장로",
+        "keyword": "커플",
+        "query": "커플와 가기 좋은 광주광역시 동구 충장로 추천",
+        "returned_name": "충장로거리",
+        "exists_in_db": true,
+        "best_match_name": "충장로거리",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "충장로거리",
+            "score": 1.0
+          },
+          {
+            "name": "구로거리공원",
+            "score": 0.327
+          },
+          {
+            "name": "충효당",
+            "score": 0.15
+          },
+          {
+            "name": "장군식당",
+            "score": 0.133
+          },
+          {
+            "name": "복서울해장국",
+            "score": 0.109
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 7.868346214294434,
+        "raw_result": {
+          "name": "충장로거리",
+          "type": "관광지",
+          "description": "충장로거리는 인생네컷샵과 맛있는 마라탕집처럼 초등학생인 사용자에게 특히 즐거운 볼거리와 먹거리가 가득해서 좋아요.",
+          "address": "광주 동구",
+          "reviews": [],
+          "coordinates": null
+        }
+      },
+      {
+        "destination": "광주광역시 동구 충장로",
+        "keyword": "친구",
+        "query": "친구와 가기 좋은 광주광역시 동구 충장로 추천",
+        "returned_name": "충장로거리",
+        "exists_in_db": true,
+        "best_match_name": "충장로거리",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "충장로거리",
+            "score": 1.0
+          },
+          {
+            "name": "구로거리공원",
+            "score": 0.327
+          },
+          {
+            "name": "충효당",
+            "score": 0.15
+          },
+          {
+            "name": "장군식당",
+            "score": 0.133
+          },
+          {
+            "name": "복서울해장국",
+            "score": 0.109
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 13.138118028640747,
+        "raw_result": {
+          "name": "충장로거리",
+          "type": "관광지",
+          "description": "충장로거리는 광주의 명동답게 인생네컷샵과 맛있는 마라탕집 등 즐길 거리가 많아 신나는 추억을 만들기에 아주 좋아요.",
+          "address": "광주 동구",
+          "reviews": [],
+          "coordinates": null
+        }
+      },
+      {
+        "destination": "광주광역시 동구 충장로",
+        "keyword": "데이트",
+        "query": "데이트와 가기 좋은 광주광역시 동구 충장로 추천",
+        "returned_name": "충장로거리",
+        "exists_in_db": true,
+        "best_match_name": "충장로거리",
+        "similarity_score": 1.0,
+        "top_candidates": [
+          {
+            "name": "충장로거리",
+            "score": 1.0
+          },
+          {
+            "name": "구로거리공원",
+            "score": 0.327
+          },
+          {
+            "name": "충효당",
+            "score": 0.15
+          },
+          {
+            "name": "장군식당",
+            "score": 0.133
+          },
+          {
+            "name": "복서울해장국",
+            "score": 0.109
+          }
+        ],
+        "is_hallucination": false,
+        "elapsed_sec": 12.2495858669281,
+        "raw_result": {
+          "name": "충장로거리",
+          "type": "관광지",
+          "description": "충장로거리는 인생네컷샵과 맛있는 마라탕집처럼 초등학생인 사용자에게 특히 즐거운 볼거리와 먹거리가 가득해서 좋아요.",
+          "address": "광주 동구",
+          "reviews": [],
+          "coordinates": null
+        }
+      }
+    ],
+    "summary": {
+      "total_attempts": 10,
+      "total_hallucinations": 0,
+      "hallucination_rate": 0.0,
+      "avg_latency_sec": 9.901475715637208
+    }
+  },
+  "timestamp": 1765489153.985861
+}

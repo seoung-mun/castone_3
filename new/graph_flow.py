@@ -64,8 +64,9 @@ def create_specialist_agent(system_prompt: str):
                 # 디버깅을 위해 터미널에 출력
                 print(f"DEBUG: SupervisorAgent가 최종 정리한 itinerary:\n{parsed_itinerary}")
                 
-                # 현재 itinerary 상태를 새로 파싱한 데이터로 완전히 교체
-                itinerary = parsed_itinerary
+                # Normalize days/types/descriptions before replacing state itinerary
+                total_days = state.get('total_days', None)
+                itinerary = _normalize_itinerary_items(parsed_itinerary, total_days)
             except json.JSONDecodeError as e:
                 # JSON 변환 중 오류가 발생하면 터미널에 에러 메시지 출력
                 print(f"ERROR: 최종 itinerary JSON 파싱에 실패했습니다. 오류: {e}")
@@ -86,6 +87,12 @@ def create_specialist_agent(system_prompt: str):
         if "[STATE_UPDATE: show_pdf_button=True]" in content:
             show_pdf_button = True
 
+        # 모든 반환 전에 itinerary를 정규화해서 day 타입/범위를 고정
+        try:
+            itinerary = _normalize_itinerary_items(itinerary, state.get('total_days', None))
+        except Exception as e:
+            print(f"DEBUG: itinerary 정규화 중 오류: {e}")
+        
         return {"messages": [response], "itinerary": itinerary, "show_pdf_button": show_pdf_button}
     return agent_node
 
@@ -151,6 +158,12 @@ PDFCreationAgent = create_specialist_agent(pdf_creation_prompt)
 supervisor_prompt = """당신은 AI 여행 플래너 팀의 '슈퍼바이저'입니다.
 당신은 전문가 팀(날씨, 관광, 식당)을 관리하고, 사용자와의 상호작용을 총괄하며, 계획의 전체적인 흐름을 책임집니다.
 
+중요한 운영 규칙(반드시 준수):
+- 일정 데이터를 생성할 때는 반드시 JSON 포맷 내에 정확한 날짜를 정수로 포함하세요. 예: {'day': 2, 'name': '경복궁', 'type': '관광지'}.
+- 'day' 필드는 정수형이어야 하며, 절대 문자열이나 날짜 텍스트만으로 대체하지 마세요.
+- 사용자가 '다음 날', '다음 일' 등으로 표현하면, 실제 itinerary를 생성/수정할 때 현재의 day 값에 1을 더해 저장하세요.
+- 시스템(프론트엔드)은 일정 리스트 조작 대신 이 JSON을 신뢰하여 PDF를 생성합니다. (정규화 함수는 최후의 보루일 뿐입니다.)
+
 ### 주요 임무
 1.  **계획 추가 확인:** 사용자가 장소를 선택하면(예: "1번 경희궁으로 할래"), **현재 계획 중인 날짜(`current_planning_day`)** 와 장소 유형('관광지' 또는 '식당')을 명시하여 확인 메시지를 반환하세요. 이 메시지는 시스템이 다음 행동을 결정하는 중요한 신호입니다.
     *   (관광지 예시): "네, '경희궁'을 **1일차 관광지** 계획에 추가합니다."
@@ -164,19 +177,40 @@ supervisor_prompt = """당신은 AI 여행 플래너 팀의 '슈퍼바이저'입
     a. **전체 대화 기록(`messages`)과 현재 일정(`itinerary`)을 종합적으로 분석**하세요.
     b. 각 장소가 **왜 추천되었는지, 어떤 특징이 언급되었는지 대화의 맥락에서 파악**하세요. (예: "친구와 가기 좋은", "인테리어가 멋진", "비빔밥이 유명한")
     c. 이 맥락을 바탕으로, 각 장소에 대한 **1~2줄의 매력적인 설명(`description`)을 작성**하세요.
-    d. 작성이 끝나면, **아래와 같은 JSON 형식을 사용하여, 설명이 추가된 '최종 itinerary' 전체를 반드시 출력**해야 합니다. 이 형식은 시스템이 PDF에 내용을 쓰는 유일한 방법입니다.
+    d. ✨ **대화 기록에서 각 장소와 관련된 사용자 의견이나 리뷰 내용을 찾아서 `reviews` 배열에 포함**하세요.
+       - 예: "정말 맛있다고 하네요", "인스타그램에서 유명한 곳이래요" 등의 표현을 찾아서 추가
+       - 리뷰가 명시적으로 없으면 빈 배열 []로 두세요.
+    e. 작성이 끝나면, **아래와 같은 JSON 형식을 사용하여, 설명과 리뷰가 추가된 '최종 itinerary' 전체를 반드시 출력**해야 합니다. 이 형식은 시스템이 PDF에 내용을 쓰는 유일한 방법입니다.
 
     --- 최종 데이터 출력 형식 (이 안에 최종 itinerary를 넣으세요) ---
     [FINAL_ITINERARY_JSON]
     [
-      {{"day": 1, "type": "식당", "name": "경리단길", "description": "통이 터지도록 듬뿍 담아주는 비빔밥이 유명한 한식당입니다."}},
-      {{"day": 1, "type": "카페", "name": "8IGHTY4OUR 카페", "description": "친구와 함께 방문하기 좋으며, 멋진 인테리어와 편안한 공간이 특징입니다."}},
-      {{"day": 2, "type": "관광지", "name": "경복궁", "description": "한국의 역사를 느낄 수 있는 아름다운 궁궐입니다."}}
+      {
+        "day": 1, 
+        "type": "식당", 
+        "name": "경리단길", 
+        "description": "통이 터지도록 듬뿍 담아주는 비빔밥이 유명한 한식당입니다.",
+        "reviews": ["⭐⭐⭐⭐⭐ 정말 맛있었어요!", "⭐⭐⭐⭐ 가성비 좋습니다"]
+      },
+      {
+        "day": 1, 
+        "type": "카페", 
+        "name": "8IGHTY4OUR 카페", 
+        "description": "친구와 함께 방문하기 좋으며, 멋진 인테리어와 편안한 공간이 특징입니다.",
+        "reviews": ["⭐⭐⭐⭐⭐ 사진 찍기 좋습니다", "⭐⭐⭐⭐ 분위기가 정말 좋아요"]
+      },
+      {
+        "day": 2, 
+        "type": "관광지", 
+        "name": "경복궁", 
+        "description": "한국의 역사를 느낄 수 있는 아름다운 궁궐입니다.",
+        "reviews": []
+      }
     ]
     [/FINAL_ITINERARY_JSON]
     ---
 
-    e. 위 데이터 출력이 끝난 후, 사용자에게 "네, 대화 내용을 바탕으로 여행 계획을 상세하게 정리했습니다. 잠시 후 PDF 다운로드 버튼이 나타납니다." 라고 간단히 응답하세요.
+    f. 위 데이터 출력이 끝난 후, 사용자에게 "네, 대화 내용을 바탕으로 여행 계획을 상세하게 정리했습니다. 잠시 후 PDF 다운로드 버튼이 나타납니다." 라고 간단히 응답하세요.
 """
 SupervisorAgent = create_specialist_agent(supervisor_prompt)
 
@@ -249,6 +283,42 @@ RestaurantAgent = create_specialist_agent(restaurant_prompt)
 weather_prompt = """당신은 '날씨 분석가'입니다.
 `get_weather_forecast` 도구를 호출하여 `destination`과 `dates`의 날씨를 확인하세요."""
 WeatherAgent = create_specialist_agent(weather_prompt)
+
+def _normalize_itinerary_items(items, total_days=None):
+    """Ensure each item has integer 'day', default description/type and reasonable bounds."""
+    normalized = []
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        new_it = it.copy()
+        day = new_it.get('day', 1)
+        # extract leading integer if day provided as string like "1일차" or "1"
+        if isinstance(day, str):
+            m = re.search(r'(\d+)', day)
+            try:
+                day = int(m.group(1)) if m else 1
+            except Exception:
+                day = 1
+        else:
+            try:
+                day = int(day)
+            except Exception:
+                day = 1
+        if total_days:
+            try:
+                td = int(total_days)
+                if day < 1: day = 1
+                if day > td: day = td
+            except Exception:
+                pass
+        new_it['day'] = day
+        if 'description' not in new_it: new_it['description'] = ''
+        if 'type' not in new_it: new_it['type'] = new_it.get('category', new_it.get('type', '장소'))
+        if 'name' not in new_it: new_it['name'] = new_it.get('장소명', '이름 없음')
+        # ✨ [추가] reviews 필드 기본값 설정
+        if 'reviews' not in new_it: new_it['reviews'] = []
+        normalized.append(new_it)
+    return normalized
 
 # --- 5. 도구 실행 노드 ---
 def call_tools(state: AgentState):

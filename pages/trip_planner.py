@@ -30,16 +30,51 @@ def normalize_to_string(content):
         return "\n".join(texts)
     return str(content)
 
+# --- helper: normalize itinerary for PDF output ---
+def _normalize_itinerary_for_pdf(itinerary, total_days=None):
+    norm = []
+    for item in itinerary:
+        if not isinstance(item, dict):
+            continue
+        it = item.copy()
+        day = it.get('day', 1)
+        if isinstance(day, str):
+            m = re.search(r'(\d+)', day)
+            try:
+                day = int(m.group(1)) if m else 1
+            except:
+                day = 1
+        else:
+            try:
+                day = int(day)
+            except:
+                day = 1
+        if total_days:
+            try:
+                td = int(total_days)
+                if day < 1: day = 1
+                if day > td: day = td
+            except:
+                pass
+        it['day'] = day
+        if 'description' not in it: it['description'] = it.get('description', '')
+        if 'type' not in it and 'category' in it: it['type'] = it.get('category')
+        if 'name' not in it: it['name'] = it.get('장소명', it.get('name', '이름 없음'))
+        # ✨ [새로 추가] reviews 필드 기본값 설정
+        if 'reviews' not in it: it['reviews'] = []
+        norm.append(it)
+    return norm
+
 # --- 2. PDF 생성 함수 ---
-def create_itinerary_pdf(itinerary, destination, dates, weather, final_routes, total_days):
+def create_itinerary_pdf(itinerary, destination, dates, weather, final_routes, total_days, start_location=None):
     pdf = FPDF()
     pdf.add_page()
-    
+
     # 폰트 설정 (한글 깨짐 방지)
     # 폰트 파일이 프로젝트 루트에 있어야 합니다. 없으면 Arial(한글 미지원)로 동작
     font_path = 'NanumGothic.ttf'
     bold_font_path = 'NanumGothicBold.ttf'
-    
+
     has_korean_font = False
     try:
         if os.path.exists(font_path):
@@ -48,7 +83,7 @@ def create_itinerary_pdf(itinerary, destination, dates, weather, final_routes, t
                 pdf.add_font('NanumGothic', 'B', bold_font_path)
             else:
                 pdf.add_font('NanumGothic', 'B', font_path)
-            
+
             pdf.set_font('NanumGothic', '', 12)
             has_korean_font = True
         else:
@@ -66,6 +101,11 @@ def create_itinerary_pdf(itinerary, destination, dates, weather, final_routes, t
     pdf.set_font_size(12)
     pdf.cell(0, 10, text=f"기간: {dates}", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
 
+    # 출발지
+    if start_location:
+        pdf.set_font_size(11)
+        pdf.cell(0, 8, text=f"출발지/숙소: {start_location}", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
+
     # 날씨
     if weather and weather.strip() and weather != '정보 없음':
         pdf.set_font_size(10)
@@ -73,27 +113,36 @@ def create_itinerary_pdf(itinerary, destination, dates, weather, final_routes, t
 
     pdf.ln(10)
 
-    # 일정 정렬
+    # Normalize items first to ensure 'day' is int for sorting
+    normalized_itinerary = _normalize_itinerary_for_pdf(itinerary, total_days)
+
+    # 일정 정렬 (원본 순서 유지하면서 day와 인덱스로 정렬)
     try:
-        sorted_itinerary = sorted(itinerary, key=lambda x: (int(x.get('day', 1)), x.get('start', '00:00')))
-    except:
-        sorted_itinerary = itinerary
+        sorted_itinerary = sorted(enumerate(normalized_itinerary), key=lambda x: (int(x[1].get('day', 1)), x[1].get('start', '00:00') or '00:00', x[0]))
+        sorted_itinerary = [item[1] for item in sorted_itinerary]  # 인덱스 제거
+    except Exception:
+        # As a safe fallback, use normalized list directly
+        sorted_itinerary = normalized_itinerary
 
     # 일자별 출력
     for day_num in range(1, total_days + 1):
+        # 2일차부터는 여유 공간 추가 (페이지는 자동으로 넘어감)
+        if day_num > 1:
+            pdf.ln(15)  # 일차 사이 여유 공간
+
         pdf.set_font_size(18)
         if has_korean_font: pdf.set_font('NanumGothic', 'B', 18)
-        
+
         pdf.cell(0, 15, text=f"Day {day_num}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        
+
         pdf.set_font_size(11)
         if has_korean_font: pdf.set_font('NanumGothic', '', 11)
 
         items_today = [item for item in sorted_itinerary if int(item.get('day', 1)) == day_num]
-        
+
         if not items_today:
             pdf.cell(0, 10, text="  - 계획된 일정이 없습니다.", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-            pdf.ln(5)
+            pdf.ln(10)
             continue
 
         for item in items_today:
@@ -107,22 +156,46 @@ def create_itinerary_pdf(itinerary, destination, dates, weather, final_routes, t
                 pdf.cell(0, 8, text=move_text, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
                 pdf.set_text_color(0, 0, 0) # 검정색 복구
                 pdf.set_font_size(11)
-            
+
             # 장소(Activity) 항목
             else:
                 time_info = f"[{item.get('start', '시간 미정')}-{item.get('end', '')}]" if item.get('start') else "[시간 미정]"
-                
+
                 if has_korean_font: pdf.set_font('NanumGothic', 'B', 12)
                 main_text = f"  ● {time_info} {item.get('name', '이름 없음')} ({item.get('category', item_type)})"
                 pdf.cell(0, 8, text=main_text, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-                
+
                 # 설명
                 if item.get('description'):
                     if has_korean_font: pdf.set_font('NanumGothic', '', 10)
                     pdf.set_x(20) # 들여쓰기
                     pdf.multi_cell(0, 5, text=f"{item['description']}")
                     pdf.ln(2)
+
+                # ✨ [새로 추가] 리뷰 섹션
+                reviews = item.get('reviews', [])
+                if reviews and isinstance(reviews, list):
+                    if has_korean_font: pdf.set_font('NanumGothic', '', 9)
+                    pdf.set_x(20)
+                    for review in reviews:
+                        # 리뷰 항목이 문자열이라면 그대로, dict라면 포매팅
+                        if isinstance(review, str):
+                            review_text = review
+                        elif isinstance(review, dict):
+                            review_text = review.get('text', str(review))
+                        else:
+                            review_text = str(review)
+                        pdf.multi_cell(0, 4, text=f"  • {review_text}")
+                    pdf.ln(2)
+
+        # 일차별 구분선과 메모 공간
         pdf.ln(10)
+        pdf.line(pdf.get_x(), pdf.get_y(), pdf.get_x() + 190, pdf.get_y())
+        pdf.ln(5)
+        pdf.set_font_size(14)
+        if has_korean_font: pdf.set_font('NanumGothic', '', 14)
+        pdf.cell(0, 10, text="메모:", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.ln(20)  # 메모 공간
 
     return bytes(pdf.output())
 
@@ -131,13 +204,39 @@ st.set_page_config(page_title="AI 여행 플래너", layout="centered")
 st.title("💬 AI 여행 플래너")
 
 with st.sidebar:
-    st.header("질문 가이드")
+    # ===== 1. 현재 여행 정보 =====
+    st.header("📍 현재 여행 정보")
+
+    st.markdown(f"**목적지:** {st.session_state.get('destination', '-')}")
+    if st.session_state.get('start_location'):
+        st.markdown(f"**출발지:** {st.session_state.get('start_location', '-')}")
+    st.markdown(f"**여행 기간:** {st.session_state.get('dates', '-')}")
+
+    st.markdown("---")
+
+    # ===== 2. 사용 가이드 =====
+    st.header("💡 사용 가이드")
+
     st.markdown("""
-    - "근처 관광지 추천해줘"
-    - "맛집 알려줘"
-    - "일정 수정하고 싶어"
-    - "경로 최적화해줘"
-    - "PDF로 만들어줘"
+    **기본 질문 예시**
+    - "다음 날 계획을 알려줘"
+    - "맛집 추가해줘"
+    - "카페 추천해줘"
+    - "1일차 계획 다시 알려줘"
+
+    **장소 추가/변경**
+    - "[지역명] 관광지 추가해줘"
+    - "실내 활동으로 바꿔줘"
+    - "사진 찍기 좋은 곳 추천해줘"
+
+    **계획 수정**
+    - 날씨에 맞는 대안 요청
+    - 이동 시간을 고려한 재배치
+    - 특정 테마의 장소 추천
+
+    **완료 후**
+    - PDF 다운로드로 상세 일정 저장
+    - 이동 경로 및 소요시간 포함
     """)
 
 # 필수 정보 체크
@@ -200,6 +299,12 @@ async def run_ai_agent():
 
     st.session_state.messages = response.get('messages', [])
     st.session_state.itinerary = response.get('itinerary', [])
+    # 강제 정규화: day 정수형 및 기본 키 보장
+    try:
+        st.session_state.itinerary = _normalize_itinerary_for_pdf(st.session_state.itinerary, st.session_state.get('total_days', None))
+    except Exception as e:
+        print("DEBUG: 페이지측 itinerary 정규화 실패:", e)
+
     st.session_state.current_weather = response.get('current_weather', '')
     st.session_state.show_pdf_button = response.get('show_pdf_button', False)
     st.session_state.current_anchor = response.get('current_anchor', '')
@@ -212,13 +317,18 @@ if not st.session_state.messages:
     if 'session_id' not in st.session_state:
         st.session_state.session_id = str(time.time())
 
+    # 출발지 정보가 있으면 포함
+    start_location_text = ""
+    if st.session_state.get('start_location'):
+        start_location_text = f"\n    - 출발지/숙소: {st.session_state.get('start_location')}"
+
     initial_prompt = f"""
     안녕하세요! 아래 정보로 여행 계획을 세워주세요.
-    - 목적지: {st.session_state.get('destination')}
+    - 목적지: {st.session_state.get('destination')}{start_location_text}
     - 일정: {st.session_state.get('dates')} (총 {st.session_state.get('total_days')}일)
     - 스타일: {st.session_state.get('preference')}
     - 동행: {st.session_state.get('group_type')}
-    
+
     날씨 확인 후, 1일차 일정부터 바로 시작해주세요.
     """
     st.session_state.messages.append(HumanMessage(content=initial_prompt))
@@ -243,21 +353,131 @@ for msg in st.session_state.messages:
 # --- 8. PDF 다운로드 버튼 ---
 if st.session_state.show_pdf_button:
     weather_info = st.session_state.get('current_weather', '날씨 정보 없음')
+    
+    # ✨ [새로 추가] PDF 생성 전 데이터 검증
+    st.write("### 🔍 PDF 생성 데이터 검증")
+    
+    with st.expander("📊 데이터 상세 확인 (클릭하여 펼치기)", expanded=False):
+        # 1. Itinerary 구조 검증
+        st.write("#### 1️⃣ Itinerary 구조 검증")
+        
+        itinerary_data = st.session_state.itinerary
+        st.write(f"**총 항목 수:** {len(itinerary_data)}")
+        
+        # Day별 분류
+        day_groups = {}
+        for idx, item in enumerate(itinerary_data):
+            day = int(item.get('day', 1))
+            if day not in day_groups:
+                day_groups[day] = []
+            day_groups[day].append((idx, item))
+        
+        for day in sorted(day_groups.keys()):
+            items = day_groups[day]
+            st.write(f"**Day {day}:** {len(items)}개 항목")
+            
+            for idx, item in items:
+                # 시간 정보 검증
+                start = item.get('start', '없음')
+                end = item.get('end', '없음')
+                item_type = item.get('type', '미지정')
+                name = item.get('name', '이름없음')
+                
+                # 시간 유효성 검사
+                time_valid = "✅" if (start != '없음' and end != '없음' and start < end) else "❌"
+                
+                st.write(f"  {idx}. [{item_type}] {name} {time_valid}")
+                st.write(f"     └ 시간: {start} ~ {end}")
+                
+                # Description 확인
+                description = item.get('description', '')
+                if description:
+                    st.write(f"     └ 설명: {description[:60]}..." if len(description) > 60 else f"     └ 설명: {description}")
+                else:
+                    st.write(f"     └ 설명: (없음)")
+                
+                # Reviews 확인
+                reviews = item.get('reviews', [])
+                if reviews:
+                    st.write(f"     └ 리뷰 ({len(reviews)}개):")
+                    for rev in reviews:
+                        st.write(f"        • {rev[:70]}..." if len(rev) > 70 else f"        • {rev}")
+                else:
+                    st.write(f"     └ 리뷰: (없음)")
+        
+        # 2. 메타데이터 검증
+        st.write("#### 2️⃣ 메타데이터 검증")
+        st.write(f"**목적지:** {st.session_state.destination}")
+        st.write(f"**날짜:** {st.session_state.dates}")
+        st.write(f"**총 일수:** {st.session_state.total_days}")
+        st.write(f"**날씨:** {weather_info[:100]}..." if len(weather_info) > 100 else f"**날씨:** {weather_info}")
+        
+        # 3. 시간 순서 검증
+        st.write("#### 3️⃣ 시간 순서 검증 (각 Day별)")
+        
+        for day in sorted(day_groups.keys()):
+            items = day_groups[day]
+            # 활동만 필터 (move 제외 또는 포함)
+            activity_items = [item for _, item in items if item.get('type') != 'move']
+            
+            if activity_items:
+                times = [item.get('start', '00:00') for item in activity_items]
+                is_sorted = all(times[i] <= times[i+1] for i in range(len(times)-1))
+                status = "✅ 정렬됨" if is_sorted else "❌ 정렬 안 됨"
+                
+                st.write(f"**Day {day}:** {status}")
+                for item in activity_items:
+                    st.write(f"  - {item.get('start', '?')} ~ {item.get('end', '?')}: {item.get('name', '?')}")
+        
+        # 4. 정규화 후 상태 확인
+        st.write("#### 4️⃣ 정규화 후 상태")
+        normalized = _normalize_itinerary_for_pdf(itinerary_data, st.session_state.total_days)
+        st.write(f"**정규화 후 항목 수:** {len(normalized)}")
+        
+        # 모든 day가 정수인지 확인
+        all_days_int = all(isinstance(item.get('day'), int) for item in normalized)
+        st.write(f"**모든 day가 정수:** {'✅ Yes' if all_days_int else '❌ No'}")
+        
+        # 모든 필수 필드 확인
+        missing_fields = []
+        for idx, item in enumerate(normalized):
+            if not item.get('name'):
+                missing_fields.append(f"항목{idx}: name 없음")
+            if not item.get('type'):
+                missing_fields.append(f"항목{idx}: type 없음")
+            if 'day' not in item:
+                missing_fields.append(f"항목{idx}: day 없음")
+            if 'reviews' not in item:
+                missing_fields.append(f"항목{idx}: reviews 없음")
+        
+        if missing_fields:
+            st.write(f"**필드 누락:** ❌")
+            for field in missing_fields:
+                st.write(f"  - {field}")
+        else:
+            st.write(f"**필드 누락:** ✅ None")
+    
+    # PDF 생성
     pdf_bytes = create_itinerary_pdf(
         st.session_state.itinerary,
         st.session_state.destination,
         st.session_state.dates,
         weather_info,
-        "", 
-        st.session_state.total_days
+        "",
+        st.session_state.total_days,
+        st.session_state.get("start_location")
     )
+    
     if pdf_bytes:
+        st.success("✅ PDF 생성 완료!")
         st.download_button(
             label="📄 여행 계획 PDF 다운로드",
             data=pdf_bytes,
             file_name=f"{st.session_state.destination}_여행계획.pdf",
             mime="application/pdf"
         )
+    else:
+        st.error("❌ PDF 생성 실패")
 
 # --- 9. 사용자 입력 처리 ---
 if user_input := st.chat_input("메시지를 입력하세요..."):
