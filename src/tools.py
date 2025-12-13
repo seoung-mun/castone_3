@@ -1,4 +1,4 @@
-import os, json, math
+import os, json, math, requests
 import httpx
 import asyncio
 import datetime
@@ -21,6 +21,33 @@ except ImportError:
     def normalize_region_name(name): return name
 
 # --- [1] LLM 체인 정의 (지역 추출, 설명 생성) ---
+
+query_gen_prompt = PromptTemplate.from_template("""
+역할: 당신은 '검색어 최적화 전문가'입니다.
+목표: 사용자의 요청과 취향을 분석하여, 벡터 데이터베이스에서 가장 정확한 장소를 찾을 수 있는 **3개의 검색 쿼리**를 생성하세요.
+
+[입력 정보]
+- 여행지/지역: {target_region}
+- 사용자 검색어: {query}
+- 사용자 취향/정보: {user_info}
+- 카테고리 필터: {category_filter}
+
+[지침]
+1. 사용자의 자연어 문장(취향)에서 **핵심 키워드(형용사, 명사)**만 추출하세요. (예: "조용한", "뷰맛집", "재즈")
+2. 지역명과 핵심 키워드를 조합하여 검색어를 만드세요.
+3. 다음 3가지 관점의 쿼리를 생성하세요:
+   - 쿼리 1: 지역명 + 사용자 검색어 (기본 정확도 중심)
+   - 쿼리 2: 지역명 + 사용자 검색어 + 취향 키워드 (구체적 니즈 중심)
+   - 쿼리 3: 지역명 + 분위기/테마 키워드 (광범위 탐색)
+4. 결과는 오직 쉼표(,)로 구분된 문자열로만 출력하세요. 다른 설명은 생략하세요.
+
+[예시]
+입력: 지역="서울", 검색어="카페", 취향="조용하고 작업하기 좋은 곳", 필터="카페"
+출력: 서울 카페, 서울 조용한 작업하기 좋은 카페, 서울 스터디 카페 분위기
+""")
+
+query_gen_chain = query_gen_prompt | LLM | StrOutputParser()
+
 
 # 1-1. 검색어에서 행정구역 추출 (LLM fallback용)
 region_prompt = PromptTemplate.from_template("""
@@ -97,11 +124,14 @@ def calculate_distance_time(start_lat, start_lng, end_lat, end_lng, mode="drivin
 
 async def get_detailed_route(start_place: str, end_place: str, mode="transit", departure_time=None):
     """상세 경로 조회 (Google Maps Directions API)"""
-    if not GMAPS_CLIENT: return None
+    if not GMAPS_CLIENT: 
+        print(f"DEBUG: ❌ GMAPS_CLIENT가 없습니다. (API Key 확인 필요)")
+        return None
     if mode == "transit" and not departure_time: departure_time = datetime.datetime.now()
     if mode != "transit": departure_time = None
 
     try:
+        print(f"DEBUG: 🗺️ 경로 검색 요청: {start_place} -> {end_place}")
         res = await asyncio.to_thread(
             GMAPS_CLIENT.directions, origin=start_place, destination=end_place,
             mode=mode, departure_time=departure_time, region="KR", language="ko"
@@ -126,7 +156,8 @@ async def get_detailed_route(start_place: str, end_place: str, mode="transit", d
                 "start_location": route['start_location'], "end_location": route['end_location']
             }
     except Exception as e:
-        pass
+        print(f"DEBUG: ⚠️ 경로 검색 API 에러: {e}") # 에러 로그 출력
+        return None
     
     # Fallback: 직선 거리 계산
     slat, slng = await get_coordinates(start_place)
@@ -357,13 +388,40 @@ async def find_and_select_best_place(query: str,
         except Exception as e:
             print(f"DEBUG: 좌표 조회 실패: {e}")
 
-    # 검색어 결합 시 'query'를 앞에 둬서 장소 의미를 우선으로 검색하도록 조정
-    search_query_v1 = f"{query} {target_region} {user_info} {category_filter}".strip()
-    print(f"DEBUG: 🔍 1차 검색 시도 (선호 포함): '{search_query_v1}'")
+    try:
+        # A. 쿼리 생성
+        generated_queries_str = await query_gen_chain.ainvoke({
+            "target_region": target_region,
+            "query": query,
+            "user_info": user_info,
+            "category_filter": category_filter
+        })
+        # 쉼표로 분리하여 리스트화
+        search_queries = [q.strip() for q in generated_queries_str.split(',') if q.strip()]
+        print(f"DEBUG: 🧠 생성된 멀티 쿼리: {search_queries}")
+        
+    except Exception as e:
+        print(f"DEBUG: 쿼리 생성 실패({e}) -> 기본 쿼리 사용")
+        search_queries = [f"{target_region} {query} {category_filter}"]
+    # B. 병렬 검색 실행 (모든 쿼리에 대해 동시에 검색)
+    # 각 쿼리당 상위 50개씩 검색 (너무 많으면 느려지므로 조절)
+    tasks = [_search_docs(q, k=50) for q in search_queries]
+    results_list = await asyncio.gather(*tasks)
     
-    docs_v1 = await _search_docs(search_query_v1, k=20)
-    candidates = await _filter_candidates(docs_v1, target_region, exclude_places, category_filter)
-    print(f"DEBUG: 🎯 1차 후보군 수: {len(candidates)}")
+    # C. 결과 통합 및 중복 제거 (Dedup)
+    seen_places = set()
+    aggregated_docs = []
+    
+    for docs in results_list:
+        for doc in docs:
+            p_name = doc.metadata.get('장소명', '')
+            # 이미 결과 목록에 있거나, 제외 목록에 있다면 스킵
+            if p_name and p_name not in seen_places and p_name not in exclude_places:
+                seen_places.add(p_name)
+                aggregated_docs.append(doc)
+    
+    candidates = await _filter_candidates(aggregated_docs, target_region, exclude_places, category_filter)
+    print(f"DEBUG: 🎯 필터링 후 후보군 수: {len(candidates)}")
 
     if not candidates:
         print(f"DEBUG: ⚠️ 1차 검색 결과 없음 -> 2차 검색(선호 제외, 거리/카테고리 중심) 전환")
@@ -372,7 +430,7 @@ async def find_and_select_best_place(query: str,
         search_query_v2 = f"{query} {target_region} {category_filter}"
         print(f"DEBUG: 🔍 2차 검색 시도: '{search_query_v2}'")
         
-        docs_v2 = await _search_docs(search_query_v2, k=20)
+        docs_v2 = await _search_docs(search_query_v2, k=30)
         candidates = await _filter_candidates(docs_v2, target_region, exclude_places, category_filter)
         print(f"DEBUG: 🎯 2차 후보군 수: {len(candidates)}")
 
@@ -598,9 +656,93 @@ async def optimize_and_get_routes(places: List[str], start_location: str = "") -
         return f"최적화 실패: {e}"
 
 @tool
-async def get_weather_forecast(destination: str, dates: str) -> str:
-    """날씨 조회 도구"""
-    return f"[{destination}] 날씨 정보: 맑음, 기온 20도 (API 연동 필요)" 
+def get_weather_forecast(destination: str, dates: str) -> str:
+    """
+    도시명(destination)으로 위도/경도를 조회하고, 그 좌표로 5일 예보를 조회하여,
+    사용자가 요청한 날짜(dates)의 날씨만 요약해 반환합니다. (3단계 날짜 파싱 적용)
+    """
+    API_KEY = os.getenv("OWM_API_KEY")
+    if not API_KEY:
+        return "오류: OWM_API_KEY가 .env 파일에 설정되지 않았습니다."
+
+    # 1단계: Geocoding
+    geo_url = "https://api.openweathermap.org/geo/1.0/direct"
+    geo_params = {'q': f"{destination},KR", 'limit': 1, 'appid': API_KEY}
+    lat, lon = None, None
+    try:
+        response = requests.get(geo_url, params=geo_params, timeout=5)
+        response.raise_for_status()
+        geo_data = response.json()
+        if geo_data:
+            lat = geo_data[0]['lat']
+            lon = geo_data[0]['lon']
+        else:
+            return f"오류: '{destination}'의 좌표(Geocoding)를 찾을 수 없습니다."
+    except Exception as e:
+        return f"오류: Geocoding API 호출 중 문제 발생: {e}"
+
+    # 2단계: Forecast
+    forecast_url = "https://api.openweathermap.org/data/2.5/forecast"
+    forecast_params = {'lat': lat, 'lon': lon, 'appid': API_KEY, 'units': 'metric', 'lang': 'kr'}
+    forecasts = None
+    try:
+        response = requests.get(forecast_url, params=forecast_params, timeout=10)
+        response.raise_for_status()
+        forecast_data = response.json()
+        forecasts = forecast_data.get('list', [])
+    except Exception as e:
+        return f"오류: Forecast API 호출 중 문제 발생: {e}"
+    if not forecasts:
+        return "오류: Forecast API에서 'list' 데이터를 찾을 수 없습니다."
+
+    # 3단계: 날짜 필터링 (3-Step 파싱 로직)
+    target_date_str = ""
+    today = datetime.datetime.now()
+    
+    try:
+        # 1. 'YYYY년 M월 D일' (공백 O)
+        target_date_obj = datetime.datetime.strptime(dates, "%Y년 %m월 %d일")
+        target_date_str = target_date_obj.strftime("%Y-%m-%d")
+    except ValueError:
+        try:
+            # 2. 'YYYY년MM월DD일' (공백 X)
+            target_date_obj = datetime.datetime.strptime(dates, "%Y년%m월%d일")
+            target_date_str = target_date_obj.strftime("%Y-%m-%d")
+        except ValueError:
+            try:
+                # 3. 'M월 D일' (연도 없음)
+                target_date_obj = datetime.datetime.strptime(dates, "%m월 %d일")
+                target_date_obj = target_date_obj.replace(year=today.year)
+                target_date_str = target_date_obj.strftime("%Y-%m-%d")
+            except ValueError:
+                 # 4. 모든 형식 실패 -> 키워드 검색
+                 if "주말" in dates or "토요일" in dates:
+                     days_until_saturday = (5 - today.weekday() + 7) % 7
+                     saturday = today + datetime.timedelta(days=days_until_saturday)
+                     target_date_str = saturday.strftime("%Y-%m-%d")
+                 elif "내일" in dates:
+                     tomorrow = today + datetime.timedelta(days=1)
+                     target_date_str = tomorrow.strftime("%Y-%m-%d")
+                 else: 
+                     tomorrow = today + datetime.timedelta(days=1)
+                     target_date_str = tomorrow.strftime("%Y-%m-%d")
+    
+    # 4단계: 결과 가공
+    output_str = f"[{destination} ({target_date_str}) 날씨 예보 (OWM)]\n"
+    found = False
+    for forecast in forecasts:
+        if forecast['dt_txt'].startswith(target_date_str):
+            time_utc = forecast['dt_txt'].split(' ')[1][:5]
+            temp = forecast['main']['temp'] 
+            desc = forecast['weather'][0]['description']
+            output_str += f"- {time_utc} (UTC): {temp:.1f}℃, {desc}\n"
+            found = True
+    
+    if not found:
+        return f"정보: {target_date_str} 날짜의 예보를 찾을 수 없습니다. (OWM은 5일치만 제공)"
+    
+    return output_str
+
 
 @tool
 def confirm_and_download_pdf():
