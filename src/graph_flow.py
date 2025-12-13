@@ -168,12 +168,13 @@ def agent_router(state: AgentState):
     # 3. 그 외(일반 대화)는 사용자에게 보여주고 종료
     return END
 
+# src/graph_flow.py 내부함수 교체
+
 async def call_tools_node(state: AgentState):
     last_message = state['messages'][-1]
     new_itinerary = state.get('itinerary', []).copy()
     new_anchor = state.get('current_anchor')
     
-    # 사용자 정보 스트링 생성
     user_info_str = f"모임:{state.get('group_type')}, 스타일:{state.get('style')}, 선호:{state.get('preference')}"
     current_stage = state.get("dialog_stage", "planning")
     show_pdf = state.get("show_pdf_button", False)
@@ -181,27 +182,65 @@ async def call_tools_node(state: AgentState):
     tool_calls = last_message.tool_calls
     tool_outputs = []
 
+    # [헬퍼 1] 카테고리 정규화 및 비교
+    def get_category_group(type_str):
+        t = str(type_str).replace("맛집", "식당").replace("음식점", "식당")
+        if any(x in t for x in ["식당", "요리", "레스토랑", "반점", "회관", "고기", "뷔페"]): return "식당"
+        if any(x in t for x in ["카페", "커피", "베이커리", "디저트", "찻집"]): return "카페"
+        if any(x in t for x in ["관광", "명소", "여행", "공원", "박물관", "미술관", "산책", "전시"]): return "관광지"
+        return "기타"
+
     def is_same_category(type1, type2):
-        """두 장소가 같은 '슬롯'을 차지하는지 확인 (예: 둘 다 식당이면 True)"""
-        t1 = str(type1).replace("맛집", "식당").replace("음식점", "식당")
-        t2 = str(type2).replace("맛집", "식당").replace("음식점", "식당")
+        return get_category_group(type1) == get_category_group(type2)
+
+    # [헬퍼 2] 지능형 일정 정렬 (핵심 로직)
+    def reorganize_itinerary(items):
+        if not items: return []
         
-        groups = [
-            ["식당", "요리", "레스토랑", "반점", "회관", "고기", "뷔페"],
-            ["카페", "커피", "베이커리", "디저트", "찻집"],
-            ["관광", "명소", "여행", "공원", "박물관", "미술관", "산책", "전시"]
-        ]
-        for group in groups:
-            if any(g in t1 for g in group) and any(g in t2 for g in group):
-                return True
-        return False
+        # 1. 날짜별로 그룹화
+        days = sorted(list(set(item.get('day', 1) for item in items)))
+        final_list = []
+
+        for day in days:
+            day_items = [x for x in items if x.get('day', 1) == day]
+            
+            # 카테고리별 분리
+            restaurants = [x for x in day_items if get_category_group(x.get('type')) == "식당"]
+            cafes = [x for x in day_items if get_category_group(x.get('type')) == "카페"]
+            tourists = [x for x in day_items if get_category_group(x.get('type')) == "관광지"]
+            others = [x for x in day_items if get_category_group(x.get('type')) == "기타"]
+
+            # 2. 표준 시퀀스대로 재배치: [점심(식당) -> 카페 -> 관광지 -> 저녁(식당)]
+            # 식당이 2개 이상이면: 첫 번째를 점심, 나머지를 저녁으로 배치
+            # (만약 식당이 1개라면 점심으로 배치)
+            
+            sorted_day = []
+            
+            # (1) 점심 (식당 첫 번째)
+            if restaurants:
+                sorted_day.append(restaurants.pop(0))
+            
+            # (2) 카페
+            sorted_day.extend(cafes)
+            
+            # (3) 관광지
+            sorted_day.extend(tourists)
+            
+            # (4) 기타 (중간에 끼워넣음)
+            sorted_day.extend(others)
+            
+            # (5) 저녁 (남은 식당들)
+            sorted_day.extend(restaurants)
+
+            final_list.extend(sorted_day)
+            
+        return final_list
 
     # --- 내부 실행 함수 ---
     async def call_tool_executor(tool_call):
         tool_name = tool_call.get("name")
         args = tool_call.get("args", {})
         
-        # Args 주입 (기존 로직)
         if tool_name == "find_and_select_best_place":
             args['exclude_places'] = [item['name'] for item in new_itinerary if 'name' in item]
             if not args.get('anchor'): args['anchor'] = new_anchor or state.get('destination')
@@ -211,49 +250,51 @@ async def call_tools_node(state: AgentState):
             
         if tool_name in AVAILABLE_TOOLS:
             try:
-                # 1. 도구 실행
                 res = await AVAILABLE_TOOLS[tool_name].ainvoke(args)
-                raw_output = str(res) # 상태 업데이트용 (순수 JSON)
+                raw_output = str(res)
                 
-                # 2. [System Injection] LLM에게 보낼 메시지에는 '종료 명령' 추가
                 llm_content = raw_output
                 if tool_name == "plan_itinerary_timeline":
-                    llm_content += "\n\n[SYSTEM INSTRUCTION: 일정 계획이 확정되었습니다. 절대 이 도구를 다시 호출하지 마세요. 즉시 사용자에게 결과를 요약해 브리핑하세요.]"
+                    llm_content += "\n\n[SYSTEM INSTRUCTION: 일정 계획 완료. 재호출 금지. 결과 브리핑 요망.]"
                 elif tool_name == "optimize_and_get_routes":
-                    llm_content += "\n\n[SYSTEM INSTRUCTION: 경로 최적화 완료. 재호출 금지. 결과 브리핑 요망.]"
+                    llm_content += "\n\n[SYSTEM INSTRUCTION: 경로 최적화 완료. 재호출 금지.]"
                 
-                # 반환: (메시지, 도구명, 순수_JSON_데이터)
                 return ToolMessage(tool_call_id=tool_call['id'], content=llm_content), tool_name, raw_output
             except Exception as e:
                 return ToolMessage(tool_call_id=tool_call['id'], content=f"Error: {e}"), tool_name, None
         return None, None, None
 
-    # --- 병렬 실행 ---
     results = await asyncio.gather(*(call_tool_executor(t) for t in tool_calls))
 
-    # --- 결과 처리 ---
     for tool_message, tool_name, raw_json_output in results:
         if tool_message:
             tool_outputs.append(tool_message)
             
             if raw_json_output:
-                # 1. 장소 추가
                 if tool_name == "find_and_select_best_place":
                     try:
                         item_json = json.loads(raw_json_output)
+                        
                         if item_json.get('name') == "추천 장소 없음":
                             print("DEBUG: ⚠️ 검색 실패 - 일정 추가 안 함")
                         else:
-                            # (B) [핵심] 재검색(Retry) 감지 및 덮어쓰기 로직
-                            # 같은 날짜 + 같은 카테고리 장소가 마지막에 있다면 -> 사용자가 맘에 안 들어서 다시 찾은 것으로 간주
+                            # [덮어쓰기 로직]
                             if new_itinerary:
                                 last_item = new_itinerary[-1]
+                                # 날짜와 카테고리가 같으면 교체 시도
                                 if (item_json.get('day', 1) == last_item.get('day', 1) and 
                                     is_same_category(item_json.get('type'), last_item.get('type'))):
                                     
-                                    print(f"DEBUG: 🔄 재검색 결과 반영 - 기존 '{last_item['name']}' 삭제 후 '{item_json['name']}' 교체")
-                                    new_itinerary.pop() # 기존 장소 삭제
-                            # (기존 중복 체크 및 추가 로직 유지)
+                                    if item_json.get('name') == last_item.get('name'):
+                                        print(f"DEBUG: ⏭️ 중복 장소 무시")
+                                    else:
+                                        print(f"DEBUG: 🔄 '{last_item['name']}' -> '{item_json['name']}' 교체")
+                                        new_itinerary.pop()
+                                        new_itinerary.append(item_json)
+                                        new_anchor = item_json.get('name')
+                                        continue 
+
+                            # 일반 추가
                             if not any(x.get('name') == item_json.get('name') for x in new_itinerary):
                                 current_places = [i for i in new_itinerary if i.get('type') != 'move']
                                 day_to_add = 1
@@ -262,9 +303,9 @@ async def call_tools_node(state: AgentState):
                                 item_json['day'] = day_to_add
                                 new_itinerary.append(item_json)
                                 new_anchor = item_json.get('name')
-                    except: pass
+                                
+                    except Exception as e: pass
 
-                # 2. 삭제/교체
                 elif tool_name in ["delete_place", "replace_place"]:
                     try:
                         action_data = json.loads(raw_json_output)
@@ -273,15 +314,22 @@ async def call_tools_node(state: AgentState):
                             new_itinerary = [i for i in new_itinerary if target not in i.get('name', '')]
                     except: pass
 
-                # 3. 타임라인 업데이트 (순수 JSON 사용하므로 에러 없음)
                 elif tool_name == "plan_itinerary_timeline":
                     try:
                         new_itinerary = json.loads(raw_json_output)
                     except: pass
                 
-                # 4. PDF
                 elif tool_name == "confirm_and_download_pdf":
                     show_pdf = True
+
+    # [핵심] 일정이 뒤죽박죽 섞이지 않도록 마지막에 강제 정렬
+    if current_stage == "planning":
+        # 초기 생성 시에는 표준 순서(식당->카페->관광지)를 잡아줌
+        new_itinerary = reorganize_itinerary(new_itinerary)
+    else:
+        # 수정 단계에서는 사용자가 추가한 순서를 존중하되, 날짜가 섞이지 않게 'Day' 기준으로만 정렬
+        # (이렇게 하면 카페를 저녁 먹고 난 뒤로 보낼 수도 있습니다)
+        new_itinerary = sorted(new_itinerary, key=lambda x: x.get('day', 1))
 
     return {
         "messages": tool_outputs, 
@@ -289,6 +337,7 @@ async def call_tools_node(state: AgentState):
         "show_pdf_button": show_pdf,
         "dialog_stage": current_stage
     }
+
 
 def route_after_tools(state: AgentState):
     """도구 실행 후 경로 결정"""
