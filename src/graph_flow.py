@@ -29,19 +29,24 @@ planner_prompt = """당신은 '엄격한 여행 스케줄러'입니다.
 주어진 여행 기간({total_days}일) 동안 아래 [고정 스케줄]을 기계적으로 따르세요.
 
 🚨 **[최우선 종료 규칙]**
-- **마지막 날(Day {total_days})**에는 **'관광지' 딱 1곳**만 찾으면 끝입니다.
-- 식당, 카페, 저녁 일정을 절대 추가하지 마세요.
-- **마지막 날 관광지 1곳이 확보되면**, 즉시 `plan_itinerary_timeline`을 호출하여 종료하세요.
+1. **여행 기간이 2일 이상인 경우**:
+   - **마지막 날(Day {total_days})**에는 **'관광지' 딱 1곳**만 찾고 종료합니다.
+   - 이때는 식당, 카페, 저녁 일정을 절대 추가하지 말고 즉시 `plan_itinerary_timeline`을 호출하세요.
+2. **여행 기간이 1일(당일치기)인 경우**:
+   - 아래 **[Day 1]** 스케줄(총 4곳)을 모두 채워야 끝납니다.
+   - 절대 '마지막 날 관광지 1곳' 규칙을 적용하지 마세요.
 
 ✅ **[최종 결과물 필수 요구사항]**
 일정을 확정할 때(`plan_itinerary_timeline` 결과) 다음 3가지 요소에 집중하세요:
 1. **각 일정의 대략적인 시간** (예: 10:00 ~ 11:30)
 2. **장소 간 이동 시간** (예: 약 30분 소요)
 3. **상세 교통편 정보** (예: 1003번 버스 ➡️ 도보)
-4. **장소에 대한 간단한 소개** (예: 맛골 : 뼈해장국이 맛있고 고기양이 많아 추천해요.)
+4. **장소에 대한 정보** (예 : 맛골 : 뼈해장국이 맛있고 고기를 좋아하는 사용자님께 고기 양도 많아서 한끼 식사로는 손색없어요.)
 *위 '시간'과 '이동', *장소에 대한 간단한 소개* 정보 위주로 구성하세요.*
 
 **[시간 관리 규칙]**
+- 만약 {total_days}가 하루라면 Day 1 일정만 적용하세요. 
+    - 마지막날로 생각하지 마세요.
 - Day 2 ~ Day {total_days} 일정은 무조건 **'오전 10시 시작'**으로 설정하세요.
 - 모든 일정은 시간 순서대로 정렬되어야 합니다.
 
@@ -111,8 +116,21 @@ EditorAgent = create_agent(editor_prompt)
 
 # --- 4. 라우터 ---
 def entry_router(state: AgentState):
-    if state.get("dialog_stage") == "editing":
+    current_stage = state.get("dialog_stage", "planning")
+    last_message = state['messages'][-1]
+    
+    # [수정] 사용자가 '수정', '대신', '바꿔', '삭제' 등을 말하면 편집 모드로 강제 전환
+    if isinstance(last_message, HumanMessage):
+        content = last_message.content
+        # 단순 키워드 매칭 (필요시 더 정교하게 수정 가능)
+        edit_keywords = ["대신", "바꿔", "삭제", "변경", "다른", "취소", "빼줘"]
+        if any(k in content for k in edit_keywords):
+            print(f"DEBUG: 🔄 수정 요청 감지 -> EditorAgent로 전환")
+            return "EditorAgent"
+
+    if current_stage == "editing":
         return "EditorAgent"
+    
     return "PlannerAgent"
 
 def agent_router(state: AgentState):
@@ -163,6 +181,21 @@ async def call_tools_node(state: AgentState):
     tool_calls = last_message.tool_calls
     tool_outputs = []
 
+    def is_same_category(type1, type2):
+        """두 장소가 같은 '슬롯'을 차지하는지 확인 (예: 둘 다 식당이면 True)"""
+        t1 = str(type1).replace("맛집", "식당").replace("음식점", "식당")
+        t2 = str(type2).replace("맛집", "식당").replace("음식점", "식당")
+        
+        groups = [
+            ["식당", "요리", "레스토랑", "반점", "회관", "고기", "뷔페"],
+            ["카페", "커피", "베이커리", "디저트", "찻집"],
+            ["관광", "명소", "여행", "공원", "박물관", "미술관", "산책", "전시"]
+        ]
+        for group in groups:
+            if any(g in t1 for g in group) and any(g in t2 for g in group):
+                return True
+        return False
+
     # --- 내부 실행 함수 ---
     async def call_tool_executor(tool_call):
         tool_name = tool_call.get("name")
@@ -208,15 +241,27 @@ async def call_tools_node(state: AgentState):
                 if tool_name == "find_and_select_best_place":
                     try:
                         item_json = json.loads(raw_json_output)
-                        # (기존 중복 체크 및 추가 로직 유지)
-                        if not any(x.get('name') == item_json.get('name') for x in new_itinerary):
-                            current_places = [i for i in new_itinerary if i.get('type') != 'move']
-                            day_to_add = 1
-                            if current_places:
-                                day_to_add = current_places[-1].get('day', 1)
-                            item_json['day'] = day_to_add
-                            new_itinerary.append(item_json)
-                            new_anchor = item_json.get('name')
+                        if item_json.get('name') == "추천 장소 없음":
+                            print("DEBUG: ⚠️ 검색 실패 - 일정 추가 안 함")
+                        else:
+                            # (B) [핵심] 재검색(Retry) 감지 및 덮어쓰기 로직
+                            # 같은 날짜 + 같은 카테고리 장소가 마지막에 있다면 -> 사용자가 맘에 안 들어서 다시 찾은 것으로 간주
+                            if new_itinerary:
+                                last_item = new_itinerary[-1]
+                                if (item_json.get('day', 1) == last_item.get('day', 1) and 
+                                    is_same_category(item_json.get('type'), last_item.get('type'))):
+                                    
+                                    print(f"DEBUG: 🔄 재검색 결과 반영 - 기존 '{last_item['name']}' 삭제 후 '{item_json['name']}' 교체")
+                                    new_itinerary.pop() # 기존 장소 삭제
+                            # (기존 중복 체크 및 추가 로직 유지)
+                            if not any(x.get('name') == item_json.get('name') for x in new_itinerary):
+                                current_places = [i for i in new_itinerary if i.get('type') != 'move']
+                                day_to_add = 1
+                                if current_places:
+                                    day_to_add = current_places[-1].get('day', 1)
+                                item_json['day'] = day_to_add
+                                new_itinerary.append(item_json)
+                                new_anchor = item_json.get('name')
                     except: pass
 
                 # 2. 삭제/교체

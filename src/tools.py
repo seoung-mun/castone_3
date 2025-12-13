@@ -124,11 +124,14 @@ def calculate_distance_time(start_lat, start_lng, end_lat, end_lng, mode="drivin
 
 async def get_detailed_route(start_place: str, end_place: str, mode="transit", departure_time=None):
     """상세 경로 조회 (Google Maps Directions API)"""
-    if not GMAPS_CLIENT: return None
+    if not GMAPS_CLIENT: 
+        print(f"DEBUG: ❌ GMAPS_CLIENT가 없습니다. (API Key 확인 필요)")
+        return None
     if mode == "transit" and not departure_time: departure_time = datetime.datetime.now()
     if mode != "transit": departure_time = None
 
     try:
+        print(f"DEBUG: 🗺️ 경로 검색 요청: {start_place} -> {end_place}")
         res = await asyncio.to_thread(
             GMAPS_CLIENT.directions, origin=start_place, destination=end_place,
             mode=mode, departure_time=departure_time, region="KR", language="ko"
@@ -153,7 +156,8 @@ async def get_detailed_route(start_place: str, end_place: str, mode="transit", d
                 "start_location": route['start_location'], "end_location": route['end_location']
             }
     except Exception as e:
-        pass
+        print(f"DEBUG: ⚠️ 경로 검색 API 에러: {e}") # 에러 로그 출력
+        return None
     
     # Fallback: 직선 거리 계산
     slat, slng = await get_coordinates(start_place)
@@ -319,8 +323,8 @@ async def find_and_select_best_place(query: str,
         print(f"DEBUG: 쿼리 생성 실패({e}) -> 기본 쿼리 사용")
         search_queries = [f"{target_region} {query} {category_filter}"]
     # B. 병렬 검색 실행 (모든 쿼리에 대해 동시에 검색)
-    # 각 쿼리당 상위 10개씩 검색 (너무 많으면 느려지므로 조절)
-    tasks = [_search_docs(q, k=10) for q in search_queries]
+    # 각 쿼리당 상위 50개씩 검색 (너무 많으면 느려지므로 조절)
+    tasks = [_search_docs(q, k=50) for q in search_queries]
     results_list = await asyncio.gather(*tasks)
     
     # C. 결과 통합 및 중복 제거 (Dedup)
@@ -345,7 +349,7 @@ async def find_and_select_best_place(query: str,
         search_query_v2 = f"{target_region} {query} {category_filter}"
         print(f"DEBUG: 🔍 2차 검색 시도: '{search_query_v2}'")
         
-        docs_v2 = await _search_docs(search_query_v2, k=20)
+        docs_v2 = await _search_docs(search_query_v2, k=30)
         candidates = await _filter_candidates(docs_v2, target_region, exclude_places, category_filter)
         
         # 2차 검색 결과가 있다면, 이 중 "가장 가까운 곳"을 찾기 위해 좌표 변환 수행
