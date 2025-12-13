@@ -190,17 +190,26 @@ async def call_tools_node(state: AgentState):
                     try:
                         item_json = json.loads(output)
                         if not any(x.get('name') == item_json.get('name') for x in new_itinerary):
-                            # [단순화] 날짜 할당 로직: 현재 마지막 날짜 혹은 1일차에 이어서 붙임
-                            # 고정 스케줄러이므로 순서대로만 쌓으면 됨
+                            # 🚨 [수정] 고정 스케줄 기반 day 할당 로직
+                            # Day 1: 4곳 (점심, 카페, 관광지, 저녁)
+                            # Day 2~N-1: 5곳씩 (관광지, 점심, 카페, 관광지, 저녁)
+                            # Day N: 1곳 (관광지)
                             current_places = [i for i in new_itinerary if i.get('type') != 'move']
-                            if not current_places:
+                            place_count = len(current_places)
+                            total_days = state.get('total_days', 1)
+
+                            if place_count < 4:
+                                # Day 1: 처음 4곳
                                 item_json['day'] = 1
                             else:
-                                last_item = current_places[-1]
-                                # Day 1은 4개까지, Day 2~N은 5개까지 등 개수 세서 day 올리는 로직 필요
-                                # (복잡하면 일단 마지막 아이템과 같은 날짜로 넣고 SmartScheduler가 정렬하게 둠)
-                                item_json['day'] = last_item.get('day', 1)
-                                
+                                # Day 2부터: (전체 - Day1의 4곳) ÷ 5 + 2
+                                remaining = place_count - 4
+                                calculated_day = 2 + (remaining // 5)
+                                # total_days 초과 방지
+                                item_json['day'] = min(calculated_day, total_days)
+
+                            print(f"DEBUG: 장소 추가 - {item_json.get('name')} → Day {item_json['day']} (현재 {place_count+1}번째 장소)")
+
                             new_itinerary.append(item_json)
                             new_anchor = item_json.get('name')
                     except: pass
