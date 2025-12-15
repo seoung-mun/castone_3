@@ -1,0 +1,24 @@
+# 1. 사용자가 요청한 Faiss 인덱스 제외
+review-faiss/
+
+# 2. API 키 및 민감 정보 제외 (.env 파일)
+.env
+
+# 3. 파이썬 캐시 파일 제외
+__pycache__/
+*.pyc
+
+# 4. Jupyter Notebook 체크포인트 (업로드한 파일들)
+.ipynb_checkpoints/
+
+# 5. Streamlit 설정 파일
+.streamlit/
+
+review_faiss/
+data_csv/data.ipynb
+
+metadata_preview.csv
+.DS_Store
+
+venv/
+
