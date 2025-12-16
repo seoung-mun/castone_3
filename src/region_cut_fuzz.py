@@ -1,7 +1,6 @@
 import re
 from typing import List, Set, Dict
 
-# --- 1. 행정구역 구조 정의 (유지) ---
 REGION_STRUCTURE = {
     "서울특별시": ["종로구", "중구", "용산구", "성동구", "광진구", "동대문구", "중랑구", "성북구", "강북구", "도봉구", "노원구", "은평구", "서대문구", "마포구", "양천구", "강서구", "구로구", "금천구", "영등포구", "동작구", "관악구", "서초구", "강남구", "송파구", "강동구"],
     "부산광역시": ["중구", "서구", "동구", "영도구", "부산진구", "동래구", "남구", "북구", "해운대구", "사하구", "금정구", "강서구", "연제구", "수영구", "사상구", "기장군"],
@@ -22,7 +21,6 @@ REGION_STRUCTURE = {
     "제주특별자치도": ["제주시", "서귀포시"]
 }
 
-# --- 2. 입력 정규화 매핑 (유지) ---
 SIMPLE_ALIASES = {
     "서울": "서울특별시", "서울시": "서울특별시",
     "부산": "부산광역시", "부산시": "부산광역시",
@@ -53,22 +51,19 @@ def normalize_region_name(user_input: str) -> str:
     
     clean = user_input.strip()
     
-    # 1. [1단계] 전체 일치 또는 단순 별칭 확인 (예: "부산", "서울시")
     if clean in REGION_STRUCTURE:
         return clean
     if clean in SIMPLE_ALIASES:
         return SIMPLE_ALIASES[clean]
         
-    # 2. [2단계 - 핵심 수정] 복합어 처리 (예: "부산 해운대", "서울 강남")
-    # 공백으로 분리하여 첫 번째 단어가 지역명인지 확인합니다.
+
     parts = clean.split()
     if len(parts) >= 2:
-        head = parts[0] # "부산" 추출
+        head = parts[0] 
         if head in REGION_STRUCTURE:
             return head
         if head in SIMPLE_ALIASES:
             return SIMPLE_ALIASES[head]
             
-    # 3. [3단계] "전주", "경주" 처럼 이름이 겹치거나 명확하지 않은 경우 등
-    # 기본적인 매핑 실패 시 원본 반환
+
     return clean
